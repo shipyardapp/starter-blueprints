@@ -1,5 +1,6 @@
 import os
 import boto3
+import re
 import argparse
 
 
@@ -12,10 +13,24 @@ def getArgs(args=None):
     return parser.parse_args()
 
 
-def download_s3_file(bucket_name='', object_name='', downloaded_file_name=''):
+def determine_file_name(object_name):
+    """
+    Use the file name provided in the object name. Should be run only
+    if a new downloaded_file_name is not provided. 
+    """
+    file_name_re = re.compile(r'[\\\/]*([\w\-\._]+)$')
+    downloaded_file_name = re.search(file_name_re, object_name).group(1)
+    return downloaded_file_name
+
+
+def download_s3_file(bucket_name='', object_name='', downloaded_file_name=None):
 
     s3 = boto3.resource('s3')
     cwd = os.getcwd()
+
+    if not downloaded_file_name:
+        downloaded_file_name = determine_file_name(object_name)
+
     try:
         s3.Bucket(bucket).download_file(
             object_name, str(cwd+"/"+downloaded_file_name))
@@ -30,7 +45,9 @@ def download_s3_file(bucket_name='', object_name='', downloaded_file_name=''):
 
     print(bucket+"/"+object_name+" successfully downloaded to " +
           cwd+"/"+downloaded_file_name)
-    return os.path.abspath(downloaded_file_name)
+
+    downloaded_file_path = os.path.abspath(downloaded_file_name)
+    return downloaded_file_path
 
 
 args = getArgs()
