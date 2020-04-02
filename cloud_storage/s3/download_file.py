@@ -1,5 +1,7 @@
 import os
 import boto3
+import botocore
+from botocore.client import Config
 import re
 import argparse
 
@@ -11,6 +13,17 @@ def getArgs(args=None):
     parser.add_argument('--downloaded_file_name',
                         dest='downloaded_file_name', default=None, required=False)
     return parser.parse_args()
+
+
+def connect_to_s3():
+    s3_connection = boto3.client(
+        's3',
+        aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+        aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
+        # s3v4 is a required part of using the KMS SSE Keys
+        config=Config(signature_version='s3v4')
+    )
+    return s3_connection
 
 
 def determine_file_name(object_name):
@@ -25,25 +38,29 @@ def determine_file_name(object_name):
 
 def download_s3_file(bucket_name='', object_name='', downloaded_file_name=None):
 
-    s3 = boto3.resource('s3')
+    s3_connection = connect_to_s3()
     cwd = os.getcwd()
 
     if not downloaded_file_name:
         downloaded_file_name = determine_file_name(object_name)
 
     try:
-        s3.Bucket(bucket).download_file(
-            object_name, str(cwd+"/"+downloaded_file_name))
+        s3_connection.download_file(
+            bucket_name, object_name, str(cwd+"/"+downloaded_file_name))
 
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] == "404":
             print(e.response)
-            print(bucket+object_name+" does not exist")
+            print(f'{bucket_name}/{object_name} does not exist')
+            return e
+        if e.response['Error']['Code'] == "403":
+            print(e.response)
+            print(f'You don\'t have access to {bucket_name}/{object_name}')
             return e
         else:
             raise
 
-    print(bucket+"/"+object_name+" successfully downloaded to " +
+    print(bucket_name+"/"+object_name+" successfully downloaded to " +
           cwd+"/"+downloaded_file_name)
 
     downloaded_file_path = os.path.abspath(downloaded_file_name)
