@@ -16,6 +16,9 @@ def getArgs(args=None):
 
 
 def connect_to_s3():
+    """
+    Create a connection to the S3 service using credentials provided as environment variables.
+    """
     s3_connection = boto3.client(
         's3',
         aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
@@ -37,6 +40,9 @@ def extract_file_name_from_object(object_name):
 
 
 def determine_file_name(args):
+    """
+    Determine if the file name was provided or should be extracted from the object_name.
+    """
     if not args.downloaded_file_name:
         downloaded_file_name = extract_file_name_from_object(args.object_name)
     else:
