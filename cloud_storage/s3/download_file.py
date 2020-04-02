@@ -26,7 +26,7 @@ def connect_to_s3():
     return s3_connection
 
 
-def determine_file_name(object_name):
+def extract_file_name_from_object(object_name):
     """
     Use the file name provided in the object name. Should be run only
     if a new downloaded_file_name is not provided. 
@@ -36,13 +36,24 @@ def determine_file_name(object_name):
     return downloaded_file_name
 
 
+def determine_file_name(args):
+    if not args.downloaded_file_name:
+        downloaded_file_name = extract_file_name_from_object(args.object_name)
+    else:
+        downloaded_file_name = args.downloaded_file_name
+    return downloaded_file_name
+
+
+def clean_object_name(object_name):
+    if object_name[0] == '/':
+        object_name = object_name[1:]
+    return object_name
+
+
 def download_s3_file(bucket_name='', object_name='', downloaded_file_name=None):
 
     s3_connection = connect_to_s3()
     cwd = os.getcwd()
-
-    if not downloaded_file_name:
-        downloaded_file_name = determine_file_name(object_name)
 
     try:
         s3_connection.download_file(
@@ -69,8 +80,9 @@ def download_s3_file(bucket_name='', object_name='', downloaded_file_name=None):
 
 args = getArgs()
 bucket_name = args.bucket_name
-object_name = args.object_name
-downloaded_file_name = args.downloaded_file_name
+object_name = clean_object_name(args.object_name)
+downloaded_file_name = determine_file_name(args)
+
 
 download_s3_file(bucket_name=bucket_name, object_name=object_name,
                  downloaded_file_name=downloaded_file_name)
