@@ -134,9 +134,11 @@ if quantity == 'multiple':
         file_names = find_all_file_names(response, file_names=file_names)
         continuation_token = does_continuation_token_exist(response)
 
+    object_name_re = re.compile(object_name)
     for file in file_names:
-        download_s3_file(bucket_name=bucket_name, object_name=file,
-                         downloaded_file_name=downloaded_file_name)
+        if re.search(object_name_re, file):
+            download_s3_file(bucket_name=bucket_name, object_name=file,
+                             downloaded_file_name=downloaded_file_name)
 else:
     download_s3_file(bucket_name=bucket_name, object_name=object_name,
                      downloaded_file_name=downloaded_file_name)
