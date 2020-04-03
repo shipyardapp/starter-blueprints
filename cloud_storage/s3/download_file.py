@@ -120,6 +120,8 @@ args = getArgs()
 bucket_name = args.bucket_name
 object_name = clean_object_name(args.object_name)
 downloaded_file_name = determine_file_name(args)
+quantity = args.quantity
+prefix = args.prefix
 
 if quantity == 'multiple':
     response = list_s3_objects(bucket_name=bucket_name, prefix=prefix)
