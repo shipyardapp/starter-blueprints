@@ -9,6 +9,9 @@ import argparse
 def getArgs(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--bucket_name', dest='bucket_name', required=True)
+    parser.add_argument('--quantity', dest='quantity',
+                        choices={'single', 'multiple'}, required=True)
+    parser.add_argument('--prefix', dest='prefix', required=False)
     parser.add_argument('--object_name', dest='object_name', required=True)
     parser.add_argument('--downloaded_file_name',
                         dest='downloaded_file_name', default=None, required=False)
@@ -118,16 +121,20 @@ bucket_name = args.bucket_name
 object_name = clean_object_name(args.object_name)
 downloaded_file_name = determine_file_name(args)
 
-
-response = list_s3_objects(bucket_name=bucket_name)
-file_names = find_all_file_names(response, file_names=[])
-continuation_token = does_continuation_token_exist(response)
-
-while continuation_token:
-    response = list_s3_objects(
-        bucket_name=bucket_name, continuation_token=continuation_token)
-    file_names = find_all_file_names(response, file_names=file_names)
+if quantity == 'multiple':
+    response = list_s3_objects(bucket_name=bucket_name, prefix=prefix)
+    file_names = find_all_file_names(response, file_names=[])
     continuation_token = does_continuation_token_exist(response)
 
-download_s3_file(bucket_name=bucket_name, object_name=object_name,
-                 downloaded_file_name=downloaded_file_name)
+    while continuation_token:
+        response = list_s3_objects(
+            bucket_name=bucket_name, prefix=prefix, continuation_token=continuation_token)
+        file_names = find_all_file_names(response, file_names=file_names)
+        continuation_token = does_continuation_token_exist(response)
+
+    for file in file_names:
+        download_s3_file(bucket_name=bucket_name, object_name=file,
+                         downloaded_file_name=downloaded_file_name)
+else:
+    download_s3_file(bucket_name=bucket_name, object_name=object_name,
+                     downloaded_file_name=downloaded_file_name)
