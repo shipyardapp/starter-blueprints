@@ -56,6 +56,35 @@ def clean_object_name(object_name):
     return object_name
 
 
+def list_s3_objects(bucket_name='', prefix=None, continuation_token=None):
+    s3_connection = connect_to_s3()
+    response = s3_connection.list_objects_v2(
+        Bucket=bucket_name, Prefix=prefix, ContinuationToken=continuation_token)
+    return response
+
+
+def does_continuation_token_exist(response):
+    continuation_token = response.get('NextContinuationToken')
+    if continuation_token:
+        continuation_token_exists = True
+    else:
+        continuation_token_exists = False
+    return continuation_token
+
+
+def find_all_file_names(response, file_names=[]):
+    objects = response['Contents']
+    for obj in objects:
+        object = obj['Key']
+        file_names.append(object)
+
+    if response.get('NextContinuationToken'):
+        s3_connection.list_objects_v2(
+            Bucket=bucket_name, ContinuationToken=response.get('NextContinuationToken'))
+
+    return file_names
+
+
 def download_s3_file(bucket_name='', object_name='', downloaded_file_name=None):
 
     s3_connection = connect_to_s3()
@@ -89,6 +118,16 @@ bucket_name = args.bucket_name
 object_name = clean_object_name(args.object_name)
 downloaded_file_name = determine_file_name(args)
 
+
+response = list_s3_objects(bucket_name=bucket_name)
+file_names = find_all_file_names(response, file_names=[])
+continuation_token = does_continuation_token_exist(response)
+
+while continuation_token:
+    response = list_s3_objects(
+        bucket_name=bucket_name, continuation_token=continuation_token)
+    file_names = find_all_file_names(response, file_names=file_names)
+    continuation_token = does_continuation_token_exist(response)
 
 download_s3_file(bucket_name=bucket_name, object_name=object_name,
                  downloaded_file_name=downloaded_file_name)
