@@ -9,7 +9,7 @@ import argparse
 def getArgs(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--bucket_name', dest='bucket_name', required=True)
-    parser.add_argument('--quantity, dest='quantity',
+    parser.add_argument('--quantity', dest='quantity',
                         choices={'individual', 'multiple'}, required=True)
     parser.add_argument('--prefix', dest='prefix', default='', required=False)
     parser.add_argument('--object_name', dest='object_name', required=True)
@@ -47,7 +47,9 @@ def determine_file_name(args):
     Determine if the file name was provided or should be extracted from the object_name.
     """
     if not args.downloaded_file_name:
-        downloaded_file_name = extract_file_name_from_object(args.object_name)
+        if args.quantity == 'individual':
+            downloaded_file_name = extract_file_name_from_object(
+                args.object_name)
     else:
         downloaded_file_name = args.downloaded_file_name
     return downloaded_file_name
@@ -139,7 +141,8 @@ prefix = args.prefix
 s3_connection = connect_to_s3()
 
 if quantity == 'multiple':
-    response = list_s3_objects(bucket_name=bucket_name, prefix=prefix)
+    response = list_s3_objects(
+        bucket_name=bucket_name, prefix=prefix, s3_connection=s3_connection)
     file_names = find_all_file_names(response, file_names=[])
     continuation_token = does_continuation_token_exist(response)
 
@@ -150,10 +153,18 @@ if quantity == 'multiple':
         continuation_token = does_continuation_token_exist(response)
 
     object_name_re = re.compile(object_name)
+    i = 1
     for file in file_names:
         if re.search(object_name_re, file):
+
+            if downloaded_file_name:
+                downloaded_file_name_enumerated = re.sub(
+                    r'\.', f'_{i}.', downloaded_file_name, 1)
+            else:
+                downloaded_file_name = extract_file_name_from_object(file)
             download_s3_file(bucket_name=bucket_name, object_name=file,
-                             downloaded_file_name=extract_file_name_from_object(file))
+                             downloaded_file_name=downloaded_file_name_enumerated, s3_connection=s3_connection)
+            i += 1
 else:
     download_s3_file(bucket_name=bucket_name, object_name=object_name,
-                     downloaded_file_name=downloaded_file_name)
+                     downloaded_file_name=downloaded_file_name, s3_connection=s3_connection)
