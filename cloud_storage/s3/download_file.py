@@ -59,8 +59,7 @@ def clean_object_name(object_name):
     return object_name
 
 
-def list_s3_objects(bucket_name='', prefix='', continuation_token=''):
-    s3_connection = connect_to_s3()
+def list_s3_objects(bucket_name='', prefix='', continuation_token='', s3_connection=None):
     if continuation_token != '':
         response = s3_connection.list_objects_v2(
             Bucket=bucket_name, Prefix=prefix, ContinuationToken=continuation_token)
@@ -88,9 +87,8 @@ def find_all_file_names(response, file_names=[]):
     return file_names
 
 
-def download_s3_file(bucket_name='', object_name='', downloaded_file_name=None):
+def download_s3_file(bucket_name='', object_name='', downloaded_file_name=None, s3_connection=None):
 
-    s3_connection = connect_to_s3()
     cwd = os.getcwd()
 
     try:
@@ -122,6 +120,8 @@ object_name = clean_object_name(args.object_name)
 downloaded_file_name = determine_file_name(args)
 quantity = args.quantity
 prefix = args.prefix
+
+s3_connection = connect_to_s3()
 
 if quantity == 'multiple':
     response = list_s3_objects(bucket_name=bucket_name, prefix=prefix)
