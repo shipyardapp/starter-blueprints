@@ -9,9 +9,9 @@ import argparse
 def getArgs(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--bucket_name', dest='bucket_name', required=True)
-    parser.add_argument('--quantity', dest='quantity',
-                        choices={'single', 'multiple'}, required=True)
-    parser.add_argument('--prefix', dest='prefix', required=False)
+    parser.add_argument('--quantity, dest='quantity',
+                        choices={'individual', 'multiple'}, required=True)
+    parser.add_argument('--prefix', dest='prefix', default='', required=False)
     parser.add_argument('--object_name', dest='object_name', required=True)
     parser.add_argument('--downloaded_file_name',
                         dest='downloaded_file_name', default=None, required=False)
@@ -59,19 +59,19 @@ def clean_object_name(object_name):
     return object_name
 
 
-def list_s3_objects(bucket_name='', prefix=None, continuation_token=None):
+def list_s3_objects(bucket_name='', prefix='', continuation_token=''):
     s3_connection = connect_to_s3()
-    response = s3_connection.list_objects_v2(
-        Bucket=bucket_name, Prefix=prefix, ContinuationToken=continuation_token)
+    if continuation_token != '':
+        response = s3_connection.list_objects_v2(
+            Bucket=bucket_name, Prefix=prefix, ContinuationToken=continuation_token)
+    else:
+        response = s3_connection.list_objects_v2(
+            Bucket=bucket_name, Prefix=prefix)
     return response
 
 
 def does_continuation_token_exist(response):
-    continuation_token = response.get('NextContinuationToken')
-    if continuation_token:
-        continuation_token_exists = True
-    else:
-        continuation_token_exists = False
+    continuation_token = response.get('NextContinuationToken', '')
     return continuation_token
 
 
@@ -138,7 +138,7 @@ if quantity == 'multiple':
     for file in file_names:
         if re.search(object_name_re, file):
             download_s3_file(bucket_name=bucket_name, object_name=file,
-                             downloaded_file_name=downloaded_file_name)
+                             downloaded_file_name=extract_file_name_from_object(file))
 else:
     download_s3_file(bucket_name=bucket_name, object_name=object_name,
                      downloaded_file_name=downloaded_file_name)
