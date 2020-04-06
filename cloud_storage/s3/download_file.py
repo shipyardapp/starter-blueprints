@@ -54,13 +54,20 @@ def determine_file_name(args):
 
 
 def clean_object_name(object_name):
+    """
+    Prevent objects provided with / at the beginning from causing errors.
+    """
     if object_name[0] == '/':
         object_name = object_name[1:]
     return object_name
 
 
 def list_s3_objects(bucket_name='', prefix='', continuation_token='', s3_connection=None):
-    if continuation_token != '':
+    """
+    List 1000 objects at a time, filtering by the prefix and continuing if more than 1000 
+    objects were found on the previous run.
+    """
+    if continuation_token:
         response = s3_connection.list_objects_v2(
             Bucket=bucket_name, Prefix=prefix, ContinuationToken=continuation_token)
     else:
@@ -70,11 +77,17 @@ def list_s3_objects(bucket_name='', prefix='', continuation_token='', s3_connect
 
 
 def does_continuation_token_exist(response):
+    """
+    Determine if a continuation token was provided in the S3 list_objects_v2 response.
+    """
     continuation_token = response.get('NextContinuationToken', '')
     return continuation_token
 
 
 def find_all_file_names(response, file_names=[]):
+    """
+    Return all the objects found on S3 as a list.
+    """
     objects = response['Contents']
     for obj in objects:
         object = obj['Key']
@@ -88,7 +101,9 @@ def find_all_file_names(response, file_names=[]):
 
 
 def download_s3_file(bucket_name='', object_name='', downloaded_file_name=None, s3_connection=None):
-
+    """
+    Download a selected file from S3 to local storage in the current working directory.
+    """
     cwd = os.getcwd()
 
     try:
