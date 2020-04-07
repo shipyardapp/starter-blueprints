@@ -36,6 +36,9 @@ def connect_to_s3():
 
 
 def check_folder_name_ends_with_slash(folder_name):
+    """
+    Check to see if the folder name ends with a slash. Return a regex match object.
+    """
     folder_name = str(folder_name)
     extensions = re.compile(r'\/$')
     match = extensions.search(folder_name)
@@ -43,6 +46,9 @@ def check_folder_name_ends_with_slash(folder_name):
 
 
 def generate_full_folder_name(folder_name):
+    """
+    Add a trailing slash to the folder if it was missing one.
+    """
     folder_name = str(folder_name)
     if check_folder_name_ends_with_slash(folder_name):
         pass
@@ -52,12 +58,21 @@ def generate_full_folder_name(folder_name):
 
 
 def combine_folder_and_file_name(folder_name, file_name):
+    """
+    Combine the folder name and file name together to create the _true_ object name.
+    """
     folder_name = generate_full_folder_name(folder_name)
     object_name = f'{folder_name}{file_name}'
     return object_name
 
 
 def upload_s3_file(file_name='', folder_name='', object_name='', bucket_name='', extra_args=None, s3_connection=None):
+    """
+    Uploads a single file to S3. Uses the s3.transfer method to ensure that files larger than 5GB are split up during the upload process.
+
+    Extra Args can be found at https://boto3.amazonaws.com/v1/documentation/api/latest/guide/s3-uploading-files.html#the-extraargs-parameter
+    and are commonly used for custom file encryption or permissions.
+    """
     s3_upload_config = boto3.s3.transfer.TransferConfig()
     s3_transfer = boto3.s3.transfer.S3Transfer(
         client=s3_connection, config=s3_upload_config)
