@@ -68,6 +68,8 @@ def upload_s3_file(file_name='', folder_name='', object_name='', bucket_name='',
     s3_transfer.upload_file(file_name, bucket_name,
                             object_name, extra_args=extra_args)
 
+    print(f'{file_name} successfully uploaded to {bucket_name}{folder_name or "/"}{object_name}')
+
 
 def determine_object_name(args):
     """
@@ -76,8 +78,10 @@ def determine_object_name(args):
     if not args.object_name:
         if args.quantity == 'individual':
             object_name = local_file_name
+        else:
+            object_name = args.object_name
     else:
-        object_name = args.downloaded_file_name
+        object_name = args.object_name
     return object_name
 
 
@@ -92,7 +96,25 @@ extra_args = args.extra_args
 s3_connection = connect_to_s3()
 
 if quantity == 'multiple':
-    pass
+    file_name_re = re.compile(local_file_name)
+    i = 1
+
+    local_files = os.listdir()
+    for file in local_files:
+        if re.search(file_name_re, file):
+
+            if object_name:
+                if '.' in object_name:
+                    object_name_enumerated = re.sub(
+                        r'\.', f'_{i}.', object_name, 1)
+                else:
+                    object_name_enumerated = f'{object_name}_{i}'
+
+            else:
+                object_name_enumerated = file
+            upload_s3_file(file_name=file, folder_name=prefix, object_name=object_name_enumerated,
+                           bucket_name=bucket_name, extra_args=extra_args, s3_connection=s3_connection)
+            i += 1
 else:
     upload_s3_file(file_name=local_file_name, folder_name=prefix, object_name=object_name,
                    bucket_name=bucket_name, extra_args=extra_args, s3_connection=s3_connection)
