@@ -85,36 +85,41 @@ def determine_object_name(args):
     return object_name
 
 
-args = getArgs()
-bucket_name = args.bucket_name
-local_file_name = args.local_file_name
-object_name = determine_object_name(args)
-quantity = args.quantity
-prefix = args.prefix
-extra_args = args.extra_args
+def main():
+    args = getArgs()
+    bucket_name = args.bucket_name
+    local_file_name = args.local_file_name
+    object_name = determine_object_name(args)
+    quantity = args.quantity
+    prefix = args.prefix
+    extra_args = args.extra_args
 
-s3_connection = connect_to_s3()
+    s3_connection = connect_to_s3()
 
-if quantity == 'multiple':
-    file_name_re = re.compile(local_file_name)
-    i = 1
+    if quantity == 'multiple':
+        file_name_re = re.compile(local_file_name)
+        i = 1
 
-    local_files = os.listdir()
-    for file in local_files:
-        if re.search(file_name_re, file):
+        local_files = os.listdir()
+        for file in local_files:
+            if re.search(file_name_re, file):
 
-            if object_name:
-                if '.' in object_name:
-                    object_name_enumerated = re.sub(
-                        r'\.', f'_{i}.', object_name, 1)
+                if object_name:
+                    if '.' in object_name:
+                        object_name_enumerated = re.sub(
+                            r'\.', f'_{i}.', object_name, 1)
+                    else:
+                        object_name_enumerated = f'{object_name}_{i}'
+
                 else:
-                    object_name_enumerated = f'{object_name}_{i}'
+                    object_name_enumerated = file
+                upload_s3_file(file_name=file, folder_name=prefix, object_name=object_name_enumerated,
+                               bucket_name=bucket_name, extra_args=extra_args, s3_connection=s3_connection)
+                i += 1
+    else:
+        upload_s3_file(file_name=local_file_name, folder_name=prefix, object_name=object_name,
+                       bucket_name=bucket_name, extra_args=extra_args, s3_connection=s3_connection)
 
-            else:
-                object_name_enumerated = file
-            upload_s3_file(file_name=file, folder_name=prefix, object_name=object_name_enumerated,
-                           bucket_name=bucket_name, extra_args=extra_args, s3_connection=s3_connection)
-            i += 1
-else:
-    upload_s3_file(file_name=local_file_name, folder_name=prefix, object_name=object_name,
-                   bucket_name=bucket_name, extra_args=extra_args, s3_connection=s3_connection)
+
+if __name__ == '__main__':
+    main()
