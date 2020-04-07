@@ -131,40 +131,45 @@ def download_s3_file(bucket_name='', object_name='', downloaded_file_name=None, 
     return downloaded_file_path
 
 
-args = getArgs()
-bucket_name = args.bucket_name
-object_name = clean_object_name(args.object_name)
-downloaded_file_name = determine_file_name(args)
-quantity = args.quantity
-prefix = args.prefix
+def main():
+    args = getArgs()
+    bucket_name = args.bucket_name
+    object_name = clean_object_name(args.object_name)
+    downloaded_file_name = determine_file_name(args)
+    quantity = args.quantity
+    prefix = args.prefix
 
-s3_connection = connect_to_s3()
+    s3_connection = connect_to_s3()
 
-if quantity == 'multiple':
-    response = list_s3_objects(
-        bucket_name=bucket_name, prefix=prefix, s3_connection=s3_connection)
-    file_names = find_all_file_names(response, file_names=[])
-    continuation_token = does_continuation_token_exist(response)
-
-    while continuation_token:
+    if quantity == 'multiple':
         response = list_s3_objects(
-            bucket_name=bucket_name, prefix=prefix, continuation_token=continuation_token)
-        file_names = find_all_file_names(response, file_names=file_names)
+            bucket_name=bucket_name, prefix=prefix, s3_connection=s3_connection)
+        file_names = find_all_file_names(response, file_names=[])
         continuation_token = does_continuation_token_exist(response)
 
-    object_name_re = re.compile(object_name)
-    i = 1
-    for file in file_names:
-        if re.search(object_name_re, file):
+        while continuation_token:
+            response = list_s3_objects(
+                bucket_name=bucket_name, prefix=prefix, continuation_token=continuation_token)
+            file_names = find_all_file_names(response, file_names=file_names)
+            continuation_token = does_continuation_token_exist(response)
 
-            if downloaded_file_name:
-                downloaded_file_name_enumerated = re.sub(
-                    r'\.', f'_{i}.', downloaded_file_name, 1)
-            else:
-                downloaded_file_name = extract_file_name_from_object(file)
-            download_s3_file(bucket_name=bucket_name, object_name=file,
-                             downloaded_file_name=downloaded_file_name_enumerated, s3_connection=s3_connection)
-            i += 1
-else:
-    download_s3_file(bucket_name=bucket_name, object_name=object_name,
-                     downloaded_file_name=downloaded_file_name, s3_connection=s3_connection)
+        object_name_re = re.compile(object_name)
+        i = 1
+        for file in file_names:
+            if re.search(object_name_re, file):
+
+                if downloaded_file_name:
+                    downloaded_file_name_enumerated = re.sub(
+                        r'\.', f'_{i}.', downloaded_file_name, 1)
+                else:
+                    downloaded_file_name = extract_file_name_from_object(file)
+                download_s3_file(bucket_name=bucket_name, object_name=file,
+                                 downloaded_file_name=downloaded_file_name_enumerated, s3_connection=s3_connection)
+                i += 1
+    else:
+        download_s3_file(bucket_name=bucket_name, object_name=object_name,
+                         downloaded_file_name=downloaded_file_name, s3_connection=s3_connection)
+
+
+if __name__ is '__main__':
+    main()
