@@ -1,5 +1,8 @@
 import fileinput
+import json
+import os
 from google.cloud import bigquery
+import code
 
 
 def create_creds_json():
@@ -19,9 +22,13 @@ def get_credentials():
     #           'https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive.appdata',
     #           'https://www.googleapis.com/auth/drive.apps.readonly']
 
-    credentials = service_account.Credentials.from_service_account_file('creds.json)
+    credentials = service_account.Credentials.from_service_account_file(
+        'creds.json')
 
     return credentials
 
 
+code.interact(local=locals())
 create_creds_json()
+bigquery_connection = bigquery.Client()
+df = bigquery_connection.query(sql_statement).to_dataframe()
