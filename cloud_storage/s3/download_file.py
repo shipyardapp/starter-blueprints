@@ -54,13 +54,21 @@ def determine_file_name(args):
     return destination_file_name
 
 
-def clean_s3_file_name(s3_file_name):
+def clean_s3_key_name(s3_key_name):
     """
     Prevent objects provided with / at the beginning from causing errors.
     """
-    if s3_file_name[0] == '/':
-        s3_file_name = s3_file_name[1:]
-    return s3_file_name
+    if s3_key_name[0] == '/':
+        s3_key_name = s3_key_name[1:]
+    return s3_key_name
+
+
+def combine_s3_folder_and_file_name(s3_folder_prefix, s3_file_name):
+    combined_name = os.path.join(s3_folder_prefix, s3_file_name)
+    normalized_name = os.path.normpath(combined_name)
+    s3_key_name = clean_s3_key_name(normalized_name)
+
+    return s3_key_name
 
 
 def list_s3_objects(bucket_name='', prefix='', continuation_token='', s3_connection=None):
@@ -97,7 +105,7 @@ def find_all_file_names(response, file_names=[]):
     return file_names
 
 
-def download_s3_file(bucket_name='', s3_file_name='', destination_file_name=None, s3_connection=None):
+def download_s3_file(bucket_name='', s3_key_name='', destination_file_name=None, s3_connection=None):
     """
     Download a selected file from S3 to local storage in the current working directory.
     """
@@ -105,7 +113,7 @@ def download_s3_file(bucket_name='', s3_file_name='', destination_file_name=None
 
     try:
         s3_connection.download_file(
-            bucket_name, s3_file_name, local_path)
+            bucket_name, s3_key_name, local_path)
 
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] == "404":
@@ -128,7 +136,8 @@ def download_s3_file(bucket_name='', s3_file_name='', destination_file_name=None
 def main():
     args = get_args()
     bucket_name = args.bucket_name
-    s3_file_name = clean_s3_file_name(args.s3_file_name)
+    s3_key_name = combine_s3_folder_and_file_name(
+        s3_folder_prefix=args.s3_folder_prefix, s3_file_name=args.s3_file_name)
     destination_file_name = determine_file_name(args)
     s3_file_name_match_type = args.s3_file_name_match_type
     prefix = args.prefix
@@ -161,7 +170,7 @@ def main():
                                  destination_file_name=destination_file_name_enumerated, s3_connection=s3_connection)
                 i += 1
     else:
-        download_s3_file(bucket_name=bucket_name, s3_file_name=s3_file_name,
+        download_s3_file(bucket_name=bucket_name, s3_file_name=s3_key_name,
                          destination_file_name=destination_file_name, s3_connection=s3_connection)
 
 
