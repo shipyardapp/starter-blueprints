@@ -35,7 +35,7 @@ def connect_to_s3():
 def extract_file_name_from_s3_file_name(s3_file_name):
     """
     Use the file name provided in the s3_file_name variable. Should be run only
-    if a new destination_file_name is not provided. 
+    if a new destination_file_name is not provided.
     """
     destination_file_name = os.path.basename(s3_file_name)
     return destination_file_name
@@ -71,18 +71,15 @@ def combine_s3_folder_and_file_name(s3_folder_prefix, s3_file_name):
     return s3_key_name
 
 
-def list_s3_objects(bucket_name='', prefix='', continuation_token='', s3_connection=None):
+def list_s3_objects(s3_connection, bucket_name, prefix='', continuation_token=None):
     """
-    List 1000 objects at a time, filtering by the prefix and continuing if more than 1000 
+    List 1000 objects at a time, filtering by the prefix and continuing if more than 1000
     objects were found on the previous run.
     """
+    kwargs = {'Bucket': bucket_name, 'Prefix': prefix}
     if continuation_token:
-        response = s3_connection.list_objects_v2(
-            Bucket=bucket_name, Prefix=prefix, ContinuationToken=continuation_token)
-    else:
-        response = s3_connection.list_objects_v2(
-            Bucket=bucket_name, Prefix=prefix)
-    return response
+        kwargs['ContinuationToken'] = continuation_token
+    return s3_connection.list_objects_v2(**kwargs)
 
 
 def does_continuation_token_exist(response):
@@ -93,10 +90,11 @@ def does_continuation_token_exist(response):
     return continuation_token
 
 
-def find_all_file_names(response, file_names=[]):
+def find_all_file_names(response):
     """
     Return all the objects found on S3 as a list.
     """
+    file_names = []
     objects = response['Contents']
     for obj in objects:
         object = obj['Key']
@@ -105,7 +103,7 @@ def find_all_file_names(response, file_names=[]):
     return file_names
 
 
-def download_s3_file(bucket_name='', s3_key_name='', destination_file_name=None, s3_connection=None):
+def download_s3_file(s3_connection, bucket_name, s3_key_name, destination_file_name=None):
     """
     Download a selected file from S3 to local storage in the current working directory.
     """
@@ -134,13 +132,13 @@ def main():
         s3_file_name_re = re.compile(s3_file_name)
         response = list_s3_objects(
             bucket_name=bucket_name, prefix=prefix, s3_connection=s3_connection)
-        file_names = find_all_file_names(response, file_names=[])
+        file_names = find_all_file_names(response)
         continuation_token = does_continuation_token_exist(response)
 
         while continuation_token:
             response = list_s3_objects(
                 bucket_name=bucket_name, prefix=prefix, continuation_token=continuation_token)
-            file_names = find_all_file_names(response, file_names=file_names)
+            file_names = file_names.append(find_all_file_names(response))
             continuation_token = does_continuation_token_exist(response)
 
         i = 1
@@ -152,11 +150,11 @@ def main():
                         r'\.', f'_{i}.', destination_file_name, 1)
                 else:
                     destination_file_name = extract_file_name_from_object(file)
-                download_s3_file(bucket_name=bucket_name, s3_file_name=file,
+                download_s3_file(bucket_name=bucket_name, s3_key_name=file,
                                  destination_file_name=destination_file_name_enumerated, s3_connection=s3_connection)
                 i += 1
     else:
-        download_s3_file(bucket_name=bucket_name, s3_file_name=s3_key_name,
+        download_s3_file(bucket_name=bucket_name, s3_key_name=s3_key_name,
                          destination_file_name=destination_file_name, s3_connection=s3_connection)
 
 
