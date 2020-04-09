@@ -16,6 +16,8 @@ def get_args():
     parser.add_argument('--s3-file-name', dest='s3_file_name', required=True)
     parser.add_argument('--destination-file-name',
                         dest='destination_file_name', default=None, required=False)
+    parser.add_argument('--s3-config', dest='s3_config',
+                        default=None, required=False)
     return parser.parse_args()
 
 
@@ -25,10 +27,7 @@ def connect_to_s3():
     """
     s3_connection = boto3.client(
         's3',
-        aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
-        aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
-        # s3v4 is a required part of using the KMS SSE Keys
-        config=Config(signature_version='s3v4')
+        config=Config(s3_config)
     )
     return s3_connection
 
