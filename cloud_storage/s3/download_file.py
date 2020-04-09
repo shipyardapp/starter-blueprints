@@ -131,6 +131,7 @@ def main():
     s3_connection = connect_to_s3()
 
     if s3_file_name_match_type == 'regex_match':
+        s3_file_name_re = re.compile(s3_file_name)
         response = list_s3_objects(
             bucket_name=bucket_name, prefix=prefix, s3_connection=s3_connection)
         file_names = find_all_file_names(response, file_names=[])
@@ -142,7 +143,6 @@ def main():
             file_names = find_all_file_names(response, file_names=file_names)
             continuation_token = does_continuation_token_exist(response)
 
-        s3_file_name_re = re.compile(s3_file_name)
         i = 1
         for file in file_names:
             if re.search(s3_file_name_re, file):
