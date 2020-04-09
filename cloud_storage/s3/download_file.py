@@ -63,7 +63,7 @@ def determine_destination_file_name(*, s3_key_name, destination_file_name, file_
             destination_file_name = destination_file_name
     else:
         destination_file_name = extract_file_name_from_s3_key_name(
-            s3_file_name)
+            s3_key_name)
 
     return destination_file_name
 
@@ -187,14 +187,15 @@ def main():
             file_names, re.compile(s3_file_name))
         print(f'{len(matching_file_names)} files found. Preparing to download...')
 
-        for index, key_name in matching_file_names:
-            determine_destination_name(destination_folder_name=destination_folder_name,
-                                       destination_file_name=args.destination_file_name, s3_key_name=key_name, file_number=index+1)
+        for index, key_name in enumerate(matching_file_names):
+            destination_name = determine_destination_name(destination_folder_name=destination_folder_name,
+                                                          destination_file_name=args.destination_file_name, s3_key_name=key_name, file_number=index+1)
+            print(f'Downloading file {index+1} of {len(matching_file_names)}')
             download_s3_file(bucket_name=bucket_name, s3_key_name=key_name,
                              destination_file_name=destination_name, s3_connection=s3_connection)
     else:
-        determine_destination_name(destination_folder_name=destination_folder_name,
-                                   destination_file_name=args.destination_file_name, s3_key_name=s3_key_name)
+        destination_name = determine_destination_name(destination_folder_name=destination_folder_name,
+                                                      destination_file_name=args.destination_file_name, s3_key_name=s3_key_name)
         download_s3_file(bucket_name=bucket_name, s3_key_name=s3_key_name,
                          destination_file_name=destination_name, s3_connection=s3_connection)
 
