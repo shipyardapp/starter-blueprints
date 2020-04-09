@@ -111,21 +111,7 @@ def download_s3_file(bucket_name='', s3_key_name='', destination_file_name=None,
     """
     local_path = os.path.normpath(f'{os.getcwd()}/{download_file_name}')
 
-    try:
-        s3_connection.download_file(
-            bucket_name, s3_key_name, local_path)
-
-    except botocore.exceptions.ClientError as e:
-        if e.response['Error']['Code'] == "404":
-            print(e.response)
-            print(f'{bucket_name}/{s3_file_name} does not exist')
-            return
-        if e.response['Error']['Code'] == "403":
-            print(e.response)
-            print(f'You don\'t have access to {bucket_name}/{s3_file_name}')
-            return
-        else:
-            raise
+    s3_connection.download_file(bucket_name, s3_key_name, local_path)
 
     print(bucket_name+"/"+s3_file_name+" successfully downloaded to " +
           local_path)
