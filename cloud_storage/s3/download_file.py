@@ -16,6 +16,8 @@ def get_args():
     parser.add_argument('--s3-file-name', dest='s3_file_name', required=True)
     parser.add_argument('--destination-file-name',
                         dest='destination_file_name', default=None, required=False)
+    parser.add_argument('--destination-folder-name',
+                        dest='destination_folder_name', default=os.getcwd(), required=False)
     parser.add_argument('--s3-config', dest='s3_config',
                         default=None, required=False)
     return parser.parse_args()
@@ -64,21 +66,19 @@ def determine_destination_file_name(*, s3_file_name_match_type, s3_file_name, de
     return destination_file_name
 
 
-def clean_s3_key_name(s3_key_name):
+def clean_folder_name(folder_name):
     """
-    Prevent objects provided with / at the beginning from causing errors.
+    Cleans folders name by removing duplicate '/' as well as leading and trailing '/' characters.
     """
-    if s3_key_name[0] == '/':
-        s3_key_name = s3_key_name[1:]
-    return s3_key_name
+    folder_name = os.path.normpath(folder_name.strip('/'))
+    return folder_name
 
 
-def combine_s3_folder_and_file_name(s3_folder_prefix, s3_file_name):
-    combined_name = os.path.join(s3_folder_prefix, s3_file_name)
-    normalized_name = os.path.normpath(combined_name)
-    s3_key_name = clean_s3_key_name(normalized_name)
+def combine_folder_and_file_name(folder_name, file_name):
+    combined_name = os.path.join(folder_name, file_name)
+    combined_name = os.path.normpath(combined_name)
 
-    return s3_key_name
+    return combined_name
 
 
 def list_s3_objects(s3_connection, bucket_name, prefix='', continuation_token=None):
@@ -131,11 +131,15 @@ def main():
     args = get_args()
     bucket_name = args.bucket_name
     s3_file_name = args.s3_file_name
-    s3_folder_prefix = args.s3_folder_prefix
-    s3_key_name = combine_s3_folder_and_file_name(
-        s3_folder_prefix=s3_folder_prefix, s3_file_name=s3_file_name)
+    s3_folder_prefix = clean_folder_name(args.s3_folder_prefix)
+    s3_key_name = combine_folder_and_file_name(
+        folder_name=s3_folder_prefix, file_name=s3_file_name)
     s3_file_name_match_type = args.s3_file_name_match_type
     s3_config = args.s3_config
+    destination_folder_name = clean_folder_name(args.destination_folder_name)
+
+    if not os.path.exists(destination_folder_name):
+        os.makedirs(destination_folder_name)
 
     s3_connection = connect_to_s3(s3_config)
 
@@ -158,12 +162,16 @@ def main():
 
                 destination_file_name = determine_destination_file_name(
                     destination_file_name=args.destination_file_name, s3_file_name=file, s3_file_name_match_type=s3_file_name_match_type, file_number=file_number)
+                destination_file_name = combine_folder_and_file_name(
+                    destination_folder_name, destination_file_name)
                 download_s3_file(bucket_name=bucket_name, s3_key_name=file,
                                  destination_file_name=destination_file_name, s3_connection=s3_connection)
                 file_number += 1
     else:
         destination_file_name = determine_destination_file_name(
             destination_file_name=args.destination_file_name, s3_file_name=s3_file_name, s3_file_name_match_type=s3_file_name_match_type)
+        destination_file_name = combine_folder_and_file_name(
+            destination_folder_name, destination_file_name)
         download_s3_file(bucket_name=bucket_name, s3_key_name=s3_key_name,
                          destination_file_name=destination_file_name, s3_connection=s3_connection)
 
