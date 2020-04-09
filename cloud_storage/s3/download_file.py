@@ -9,10 +9,11 @@ import argparse
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--bucket-name', dest='bucket_name', required=True)
-    parser.add_argument('--quantity', dest='quantity',
-                        choices={'individual', 'multiple'}, required=True)
-    parser.add_argument('--prefix', dest='prefix', default='', required=False)
-    parser.add_argument('--object-name', dest='object_name', required=True)
+    parser.add_argument('--s3-file-name-match-type', dest='s3_file_name_match_type',
+                        choices={'exact_match', 'regex_match'}, required=True)
+    parser.add_argument('--s3-folder-prefix',
+                        dest='s3-folder-prefix', default='', required=False)
+    parser.add_argument('--s3-file-name', dest='s3_file_name', required=True)
     parser.add_argument('--destination-file-name',
                         dest='destination_file_name', default=None, required=False)
     return parser.parse_args()
@@ -32,36 +33,36 @@ def connect_to_s3():
     return s3_connection
 
 
-def extract_file_name_from_object(object_name):
+def extract_file_name_from_object(s3_file_name):
     """
     Use the file name provided in the object name. Should be run only
     if a new destination_file_name is not provided. 
     """
     file_name_re = re.compile(r'[\\\/]*([\w\-\._]+)$')
-    destination_file_name = re.search(file_name_re, object_name).group(1)
+    destination_file_name = re.search(file_name_re, s3_file_name).group(1)
     return destination_file_name
 
 
 def determine_file_name(args):
     """
-    Determine if the file name was provided or should be extracted from the object_name.
+    Determine if the file name was provided or should be extracted from the s3_file_name.
     """
     if not args.destination_file_name:
-        if args.quantity == 'individual':
+        if args.s3_file_name_match_type == 'exact_match':
             destination_file_name = extract_file_name_from_object(
-                args.object_name)
+                args.s3_file_name)
     else:
         destination_file_name = args.destination_file_name
     return destination_file_name
 
 
-def clean_object_name(object_name):
+def clean_s3_file_name(s3_file_name):
     """
     Prevent objects provided with / at the beginning from causing errors.
     """
-    if object_name[0] == '/':
-        object_name = object_name[1:]
-    return object_name
+    if s3_file_name[0] == '/':
+        s3_file_name = s3_file_name[1:]
+    return s3_file_name
 
 
 def list_s3_objects(bucket_name='', prefix='', continuation_token='', s3_connection=None):
@@ -98,7 +99,7 @@ def find_all_file_names(response, file_names=[]):
     return file_names
 
 
-def download_s3_file(bucket_name='', object_name='', destination_file_name=None, s3_connection=None):
+def download_s3_file(bucket_name='', s3_file_name='', destination_file_name=None, s3_connection=None):
     """
     Download a selected file from S3 to local storage in the current working directory.
     """
@@ -106,21 +107,21 @@ def download_s3_file(bucket_name='', object_name='', destination_file_name=None,
 
     try:
         s3_connection.download_file(
-            bucket_name, object_name, local_path)
+            bucket_name, s3_file_name, local_path)
 
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] == "404":
             print(e.response)
-            print(f'{bucket_name}/{object_name} does not exist')
+            print(f'{bucket_name}/{s3_file_name} does not exist')
             return
         if e.response['Error']['Code'] == "403":
             print(e.response)
-            print(f'You don\'t have access to {bucket_name}/{object_name}')
+            print(f'You don\'t have access to {bucket_name}/{s3_file_name}')
             return
         else:
             raise
 
-    print(bucket_name+"/"+object_name+" successfully downloaded to " +
+    print(bucket_name+"/"+s3_file_name+" successfully downloaded to " +
           local_path)
 
     return
@@ -129,14 +130,14 @@ def download_s3_file(bucket_name='', object_name='', destination_file_name=None,
 def main():
     args = get_args()
     bucket_name = args.bucket_name
-    object_name = clean_object_name(args.object_name)
+    s3_file_name = clean_s3_file_name(args.s3_file_name)
     destination_file_name = determine_file_name(args)
-    quantity = args.quantity
+    s3_file_name_match_type = args.s3_file_name_match_type
     prefix = args.prefix
 
     s3_connection = connect_to_s3()
 
-    if quantity == 'multiple':
+    if s3_file_name_match_type == 'regex_match':
         response = list_s3_objects(
             bucket_name=bucket_name, prefix=prefix, s3_connection=s3_connection)
         file_names = find_all_file_names(response, file_names=[])
@@ -148,21 +149,21 @@ def main():
             file_names = find_all_file_names(response, file_names=file_names)
             continuation_token = does_continuation_token_exist(response)
 
-        object_name_re = re.compile(object_name)
+        s3_file_name_re = re.compile(s3_file_name)
         i = 1
         for file in file_names:
-            if re.search(object_name_re, file):
+            if re.search(s3_file_name_re, file):
 
                 if destination_file_name:
                     destination_file_name_enumerated = re.sub(
                         r'\.', f'_{i}.', destination_file_name, 1)
                 else:
                     destination_file_name = extract_file_name_from_object(file)
-                download_s3_file(bucket_name=bucket_name, object_name=file,
+                download_s3_file(bucket_name=bucket_name, s3_file_name=file,
                                  destination_file_name=destination_file_name_enumerated, s3_connection=s3_connection)
                 i += 1
     else:
-        download_s3_file(bucket_name=bucket_name, object_name=object_name,
+        download_s3_file(bucket_name=bucket_name, s3_file_name=s3_file_name,
                          destination_file_name=destination_file_name, s3_connection=s3_connection)
 
 
