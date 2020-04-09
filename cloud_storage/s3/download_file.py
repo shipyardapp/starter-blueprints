@@ -12,7 +12,7 @@ def get_args():
     parser.add_argument('--s3-file-name-match-type', dest='s3_file_name_match_type',
                         choices={'exact_match', 'regex_match'}, required=True)
     parser.add_argument('--s3-folder-prefix',
-                        dest='s3-folder-prefix', default='', required=False)
+                        dest='s3_folder_prefix', default='', required=False)
     parser.add_argument('--s3-file-name', dest='s3_file_name', required=True)
     parser.add_argument('--destination-file-name',
                         dest='destination_file_name', default=None, required=False)
@@ -21,7 +21,7 @@ def get_args():
     return parser.parse_args()
 
 
-def connect_to_s3():
+def connect_to_s3(s3_config=None):
     """
     Create a connection to the S3 service using credentials provided as environment variables.
     """
@@ -43,20 +43,20 @@ def extract_file_name_from_s3_file_name(s3_file_name):
 
 def enumerate_destination_file_name(destination_file_name, file_number='1'):
     destination_file_name = re.sub(
-        r'\.', f'_{loop_count}.', destination_file_name, 1)
+        r'\.', f'_{file_number}.', destination_file_name, 1)
     return destination_file_name
 
 
-def determine_destination_file_name(args, file_number='1'):
+def determine_destination_file_name(*, s3_file_name_match_type, s3_file_name, destination_file_name, file_number='1'):
     """
     Determine if the file name was provided or should be extracted from the s3_file_name.
     """
     if destination_file_name:
-        if args.s3_file_match_type == 'regex_match':
+        if s3_file_name_match_type == 'regex_match':
             destination_file_name = enumerate_destination_file_name(
-                args.destination_file_name, file_number)
+                destination_file_name, file_number)
         else:
-            destination_file_name = args.destination_file_name
+            destination_file_name = destination_file_name
     else:
         destination_file_name = extract_file_name_from_s3_file_name(
             s3_file_name)
@@ -117,11 +117,11 @@ def download_s3_file(s3_connection, bucket_name, s3_key_name, destination_file_n
     """
     Download a selected file from S3 to local storage in the current working directory.
     """
-    local_path = os.path.normpath(f'{os.getcwd()}/{download_file_name}')
+    local_path = os.path.normpath(f'{os.getcwd()}/{destination_file_name}')
 
     s3_connection.download_file(bucket_name, s3_key_name, local_path)
 
-    print(bucket_name+"/"+s3_file_name+" successfully downloaded to " +
+    print(bucket_name+"/"+s3_key_name+" successfully downloaded to " +
           local_path)
 
     return
@@ -135,8 +135,9 @@ def main():
     s3_key_name = combine_s3_folder_and_file_name(
         s3_folder_prefix=s3_folder_prefix, s3_file_name=s3_file_name)
     s3_file_name_match_type = args.s3_file_name_match_type
+    s3_config = args.s3_config
 
-    s3_connection = connect_to_s3()
+    s3_connection = connect_to_s3(s3_config)
 
     if s3_file_name_match_type == 'regex_match':
         s3_file_name_re = re.compile(s3_file_name)
@@ -156,15 +157,16 @@ def main():
             if re.search(s3_file_name_re, file):
 
                 destination_file_name = determine_destination_file_name(
-                    args, file_number=file_number)
+                    destination_file_name=args.destination_file_name, s3_file_name=file, s3_file_name_match_type=s3_file_name_match_type, file_number=file_number)
                 download_s3_file(bucket_name=bucket_name, s3_key_name=file,
                                  destination_file_name=destination_file_name, s3_connection=s3_connection)
                 file_number += 1
     else:
-        destination_file_name = determine_destination_file_name(args)
+        destination_file_name = determine_destination_file_name(
+            destination_file_name=args.destination_file_name, s3_file_name=s3_file_name, s3_file_name_match_type=s3_file_name_match_type)
         download_s3_file(bucket_name=bucket_name, s3_key_name=s3_key_name,
                          destination_file_name=destination_file_name, s3_connection=s3_connection)
 
 
-if __name__ is '__main__':
+if __name__ == '__main__':
     main()
