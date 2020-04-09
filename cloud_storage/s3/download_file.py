@@ -41,16 +41,26 @@ def extract_file_name_from_s3_file_name(s3_file_name):
     return destination_file_name
 
 
-def determine_file_name(args):
+def enumerate_destination_file_name(destination_file_name, file_number='1'):
+    destination_file_name = re.sub(
+        r'\.', f'_{loop_count}.', destination_file_name, 1)
+    return destination_file_name
+
+
+def determine_destination_file_name(args, file_number='1'):
     """
     Determine if the file name was provided or should be extracted from the s3_file_name.
     """
-    if not args.destination_file_name:
-        if args.s3_file_name_match_type == 'exact_match':
-            destination_file_name = extract_file_name_from_object(
-                args.s3_file_name)
+    if destination_file_name:
+        if args.s3_file_match_type == 'regex_match':
+            destination_file_name = enumerate_destination_file_name(
+                args.destination_file_name, file_number)
+        else:
+            destination_file_name = args.destination_file_name
     else:
-        destination_file_name = args.destination_file_name
+        destination_file_name = extract_file_name_from_s3_file_name(
+            s3_file_name)
+
     return destination_file_name
 
 
@@ -82,11 +92,11 @@ def list_s3_objects(s3_connection, bucket_name, prefix='', continuation_token=No
     return s3_connection.list_objects_v2(**kwargs)
 
 
-def does_continuation_token_exist(response):
+def get_continuation_token(response):
     """
     Determine if a continuation token was provided in the S3 list_objects_v2 response.
     """
-    continuation_token = response.get('NextContinuationToken', '')
+    continuation_token = response.get('NextContinuationToken')
     return continuation_token
 
 
@@ -120,40 +130,38 @@ def download_s3_file(s3_connection, bucket_name, s3_key_name, destination_file_n
 def main():
     args = get_args()
     bucket_name = args.bucket_name
+    s3_file_name = args.s3_file_name
+    s3_folder_prefix = args.s3_folder_prefix
     s3_key_name = combine_s3_folder_and_file_name(
-        s3_folder_prefix=args.s3_folder_prefix, s3_file_name=args.s3_file_name)
-    destination_file_name = determine_file_name(args)
+        s3_folder_prefix=s3_folder_prefix, s3_file_name=s3_file_name)
     s3_file_name_match_type = args.s3_file_name_match_type
-    prefix = args.prefix
 
     s3_connection = connect_to_s3()
 
     if s3_file_name_match_type == 'regex_match':
         s3_file_name_re = re.compile(s3_file_name)
-        response = list_s3_objects(
-            bucket_name=bucket_name, prefix=prefix, s3_connection=s3_connection)
+        response = list_s3_objects(s3_connection=s3_connection,
+                                   bucket_name=bucket_name, prefix=s3_folder_prefix)
         file_names = find_all_file_names(response)
-        continuation_token = does_continuation_token_exist(response)
+        continuation_token = get_continuation_token(response)
 
         while continuation_token:
             response = list_s3_objects(
-                bucket_name=bucket_name, prefix=prefix, continuation_token=continuation_token)
+                s3_connection=s3_connection, bucket_name=bucket_name, prefix=s3_folder_prefix, continuation_token=continuation_token)
             file_names = file_names.append(find_all_file_names(response))
-            continuation_token = does_continuation_token_exist(response)
+            continuation_token = get_continuation_token(response)
 
-        i = 1
+        file_number = 1
         for file in file_names:
             if re.search(s3_file_name_re, file):
 
-                if destination_file_name:
-                    destination_file_name_enumerated = re.sub(
-                        r'\.', f'_{i}.', destination_file_name, 1)
-                else:
-                    destination_file_name = extract_file_name_from_object(file)
+                destination_file_name = determine_destination_file_name(
+                    args, file_number=file_number)
                 download_s3_file(bucket_name=bucket_name, s3_key_name=file,
-                                 destination_file_name=destination_file_name_enumerated, s3_connection=s3_connection)
-                i += 1
+                                 destination_file_name=destination_file_name, s3_connection=s3_connection)
+                file_number += 1
     else:
+        destination_file_name = determine_destination_file_name(args)
         download_s3_file(bucket_name=bucket_name, s3_key_name=s3_key_name,
                          destination_file_name=destination_file_name, s3_connection=s3_connection)
 
