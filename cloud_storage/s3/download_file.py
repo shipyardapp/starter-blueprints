@@ -32,13 +32,12 @@ def connect_to_s3():
     return s3_connection
 
 
-def extract_file_name_from_object(s3_file_name):
+def extract_file_name_from_s3_file_name(s3_file_name):
     """
-    Use the file name provided in the object name. Should be run only
+    Use the file name provided in the s3_file_name variable. Should be run only
     if a new destination_file_name is not provided. 
     """
-    file_name_re = re.compile(r'[\\\/]*([\w\-\._]+)$')
-    destination_file_name = re.search(file_name_re, s3_file_name).group(1)
+    destination_file_name = os.path.basename(s3_file_name)
     return destination_file_name
 
 
