@@ -50,8 +50,11 @@ def enumerate_destination_file_name(destination_file_name, file_number=1):
     Append a number to the end of the provided destination file name.
     Only used when multiple files are matched to, preventing the destination file from being continuously overwritten.
     """
-    destination_file_name = re.sub(
-        r'\.', f'_{file_number}.', destination_file_name, 1)
+    if re.search(r'\.', destination_file_name):
+        destination_file_name = re.sub(
+            r'\.', f'_{file_number}.', destination_file_name, 1)
+    else:
+        destination_file_name = f'{destination_file_name}_{file_number}'
     return destination_file_name
 
 
