@@ -155,7 +155,7 @@ def main():
     source_file_name = args.source_file_name
     source_folder_name = args.source_folder_name
     source_full_path = combine_folder_and_file_name(
-        folder_name=source_folder_name, file_name=source_file_name)
+        folder_name=f'{os.getcwd()}/{source_folder_name}', file_name=source_file_name)
     destination_folder_name = clean_folder_name(args.destination_folder_name)
     source_file_name_match_type = args.source_file_name_match_type
     s3_config = args.s3_config
