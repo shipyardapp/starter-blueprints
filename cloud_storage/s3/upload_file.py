@@ -40,7 +40,7 @@ def connect_to_s3(s3_config=None):
 
 def extract_file_name_from_source_full_path(source_full_path):
     """
-    Use the file name provided in the source_file_name variable. Should be run only
+    Use the file name provided in the source_full_path variable. Should be run only
     if a destination_file_name is not provided.
     """
     destination_file_name = os.path.basename(source_full_path)
@@ -52,8 +52,11 @@ def enumerate_destination_file_name(destination_file_name, file_number=1):
     Append a number to the end of the provided destination file name.
     Only used when multiple files are matched to, preventing the destination file from being continuously overwritten.
     """
-    destination_file_name = re.sub(
-        r'\.', f'_{file_number}.', destination_file_name, 1)
+    if re.search(r'\.', destination_file_name):
+        destination_file_name = re.sub(
+            r'\.', f'_{file_number}.', destination_file_name, 1)
+    else:
+        destination_file_name = f'{destination_file_name}_{file_number}'
     return destination_file_name
 
 
@@ -95,18 +98,22 @@ def combine_folder_and_file_name(folder_name, file_name):
     return combined_name
 
 
-def determine_destination_name(destination_folder_name, destination_file_name, source_full_path, file_number=None):
+def determine_destination_full_path(destination_folder_name, destination_file_name, source_full_path, file_number=None):
     """
     Determine the final destination name of the file being downloaded.
     """
     destination_file_name = determine_destination_file_name(
         destination_file_name=destination_file_name, source_full_path=source_full_path, file_number=file_number)
-    destination_name = combine_folder_and_file_name(
+    destination_full_path = combine_folder_and_file_name(
         destination_folder_name, destination_file_name)
-    return destination_name
+    return destination_full_path
 
 
 def find_all_local_file_names(source_folder_name):
+    """
+    Returns a list of all files that exist in the current working directory,
+    filtered by source_folder_name if provided.
+    """
     cwd = os.getcwd()
     cwd_extension = os.path.normpath(f'{cwd}/{source_folder_name}/*')
     file_names = glob.glob(cwd_extension)
@@ -125,7 +132,7 @@ def find_all_file_matches(file_names, file_name_re):
     return matching_file_names
 
 
-def upload_s3_file(s3_connection, bucket_name, source_full_path='', destination_full_path='', extra_args=None):
+def upload_s3_file(s3_connection, bucket_name, source_full_path, destination_full_path, extra_args=None):
     """
     Uploads a single file to S3. Uses the s3.transfer method to ensure that files larger than 5GB are split up during the upload process.
 
@@ -163,16 +170,16 @@ def main():
         print(f'{len(matching_file_names)} files found. Preparing to upload...')
 
         for index, key_name in enumerate(matching_file_names):
-            destination_name = determine_destination_name(destination_folder_name=destination_folder_name,
-                                                          destination_file_name=args.destination_file_name, source_full_path=key_name, file_number=index+1)
+            destination_full_path = determine_destination_full_path(destination_folder_name=destination_folder_name,
+                                                                    destination_file_name=args.destination_file_name, source_full_path=key_name, file_number=index+1)
             print(f'Uploading file {index+1} of {len(matching_file_names)}')
-            upload_s3_file(source_full_path=key_name, destination_full_path=destination_name,
+            upload_s3_file(source_full_path=key_name, destination_full_path=destination_full_path,
                            bucket_name=bucket_name, extra_args=extra_args, s3_connection=s3_connection)
 
     else:
-        destination_name = determine_destination_name(destination_folder_name=destination_folder_name,
-                                                      destination_file_name=args.destination_file_name, source_full_path=source_full_path)
-        upload_s3_file(source_full_path=source_full_path, destination_full_path=destination_name,
+        destination_full_path = determine_destination_full_path(destination_folder_name=destination_folder_name,
+                                                                destination_file_name=args.destination_file_name, source_full_path=source_full_path)
+        upload_s3_file(source_full_path=source_full_path, destination_full_path=destination_full_path,
                        bucket_name=bucket_name, extra_args=extra_args, s3_connection=s3_connection)
 
 
