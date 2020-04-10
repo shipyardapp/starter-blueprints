@@ -4,20 +4,20 @@ import botocore
 from botocore.client import Config
 import re
 import argparse
+import glob
 
 
 def getArgs(args=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--bucket_name', dest='bucket_name', required=True)
-    parser.add_argument('--local-file-name-match-type', dest='local_file_name_match_type',
+    parser.add_argument('--bucket-name', dest='bucket_name', required=True)
+    parser.add_argument('--source-file-name-match-type', dest='source_file_name_match_type',
                         choices={'exact_match', 'regex_match'}, required=True)
-    parser.add_argument('--prefix', dest='prefix', default='', required=False)
     parser.add_argument('--source-file-name',
-                        dest='local_file_name', required=True)
+                        dest='source_file_name', required=True)
     parser.add_argument('--source-folder-name',
-                        dest='local_folder_name', required=True)
+                        dest='source_folder_name', default='', required=False)
     parser.add_argument('--destination-folder-name',
-                        dest='destination_folder_name', default=None, required=False)
+                        dest='destination_folder_name', default='', required=False)
     parser.add_argument('--destination-file-name',
                         dest='destination_file_name', default=None, required=False)
     parser.add_argument('--s3-config', dest='s3_config',
@@ -106,7 +106,26 @@ def determine_destination_name(destination_folder_name, destination_file_name, s
     return destination_name
 
 
-def upload_s3_file(file_name='', folder_name='', object_name='', bucket_name='', extra_args=None, s3_connection=None):
+def find_all_local_file_names(source_folder_name):
+    cwd = os.getcwd()
+    cwd_extension = os.path.normpath(f'{cwd}/{source_folder_name}/*')
+    file_names = glob.glob(cwd_extension)
+    return file_names
+
+
+def find_all_file_matches(file_names, file_name_re):
+    """
+    Return a list of all file_names that matched the regular expression.
+    """
+    matching_file_names = []
+    for file in file_names:
+        if re.search(file_name_re, file):
+            matching_file_names.append(file)
+
+    return matching_file_names
+
+
+def upload_s3_file(s3_connection, bucket_name, source_full_path='', destination_full_path='', extra_args=None):
     """
     Uploads a single file to S3. Uses the s3.transfer method to ensure that files larger than 5GB are split up during the upload process.
 
@@ -117,13 +136,10 @@ def upload_s3_file(file_name='', folder_name='', object_name='', bucket_name='',
     s3_transfer = boto3.s3.transfer.S3Transfer(
         client=s3_connection, config=s3_upload_config)
 
-    if folder_name:
-        object_name = combine_folder_and_file_name(folder_name, object_name)
+    s3_transfer.upload_file(source_full_path, bucket_name,
+                            destination_full_path, extra_args=extra_args)
 
-    s3_transfer.upload_file(file_name, bucket_name,
-                            object_name, extra_args=extra_args)
-
-    print(f'{file_name} successfully uploaded to {bucket_name}{folder_name or "/"}{object_name}')
+    print(f'{source_full_path} successfully uploaded to {bucket_name}/{destination_full_path}')
 
 
 def main():
@@ -131,33 +147,32 @@ def main():
     bucket_name = args.bucket_name
     source_file_name = args.source_file_name
     source_folder_name = args.source_folder_name
-    destination_file_name = args.destination_file_name
-    destination_folder_name = args.destination_folder_name
-    object_name = determine_object_name(args)
+    source_full_path = combine_folder_and_file_name(
+        folder_name=source_folder_name, file_name=source_file_name)
+    destination_folder_name = clean_folder_name(args.destination_folder_name)
     source_file_name_match_type = args.source_file_name_match_type
     s3_config = args.s3_config
-    extra_args = args.extra_args
+    extra_args = args.s3_extra_args
 
     s3_connection = connect_to_s3(s3_config)
 
     if source_file_name_match_type == 'regex_match':
-        file_names = find_all_s3_file_names(
-            s3_connection=s3_connection, bucket_name=bucket_name, source_folder_name=source_folder_name)
+        file_names = find_all_local_file_names(source_folder_name)
         matching_file_names = find_all_file_matches(
             file_names, re.compile(source_file_name))
-        print(f'{len(matching_file_names)} files found. Preparing to download...')
+        print(f'{len(matching_file_names)} files found. Preparing to upload...')
 
         for index, key_name in enumerate(matching_file_names):
             destination_name = determine_destination_name(destination_folder_name=destination_folder_name,
                                                           destination_file_name=args.destination_file_name, source_full_path=key_name, file_number=index+1)
             print(f'Uploading file {index+1} of {len(matching_file_names)}')
-            upload_s3_file(file_name=key_name, folder_name=destination_folder_name, object_name=object_name_enumerated,
+            upload_s3_file(source_full_path=key_name, destination_full_path=destination_name,
                            bucket_name=bucket_name, extra_args=extra_args, s3_connection=s3_connection)
 
     else:
         destination_name = determine_destination_name(destination_folder_name=destination_folder_name,
-                                                      destination_file_name=args.destination_file_name, source_full_path=key_name, file_number=index+1)
-        upload_s3_file(file_name=local_file_name, folder_name=prefix, object_name=object_name,
+                                                      destination_file_name=args.destination_file_name, source_full_path=source_full_path)
+        upload_s3_file(source_full_path=source_full_path, destination_full_path=destination_name,
                        bucket_name=bucket_name, extra_args=extra_args, s3_connection=s3_connection)
 
 
