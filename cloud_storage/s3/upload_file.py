@@ -9,61 +9,101 @@ import argparse
 def getArgs(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--bucket_name', dest='bucket_name', required=True)
-    parser.add_argument('--quantity', dest='quantity',
-                        choices={'individual', 'multiple'}, required=True)
+    parser.add_argument('--local-file-name-match-type', dest='local_file_name_match_type',
+                        choices={'exact_match', 'regex_match'}, required=True)
     parser.add_argument('--prefix', dest='prefix', default='', required=False)
-    parser.add_argument('--local_file_name',
+    parser.add_argument('--local-file-name',
                         dest='local_file_name', required=True)
-    parser.add_argument('--extra_args', dest='extra_args',
+    parser.add_argument('--local-folder-name',
+                        dest='local_folder_name', required=True)
+    parser.add_argument('--s3-folder-prefix',
+                        dest='s3_folder_prefix', default=None, required=False)
+    parser.add_argument('--s3-file-name',
+                        dest='s3_file_name', default=None, required=False)
+    parser.add_argument('--s3-config', dest='s3_config',
                         default=None, required=False)
-    parser.add_argument('--object_name',
-                        dest='object_name', default=None, required=False)
+    parser.add_argument('--s3-extra-args', dest='s3_extra_args',
+                        default=None, required=False)
     return parser.parse_args()
 
 
-def connect_to_s3():
+def connect_to_s3(s3_config=None):
     """
     Create a connection to the S3 service using credentials provided as environment variables.
     """
     s3_connection = boto3.client(
         's3',
-        aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
-        aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
-        # s3v4 is a required part of using the KMS SSE Keys
-        config=Config(signature_version='s3v4')
+        config=Config(s3_config)
     )
     return s3_connection
 
 
-def check_folder_name_ends_with_slash(folder_name):
+def extract_file_name_from_local_file_name(local_file_name):
     """
-    Check to see if the folder name ends with a slash. Return a regex match object.
+    Use the file name provided in the s3_file_name variable. Should be run only
+    if a destination_file_name is not provided.
     """
-    folder_name = str(folder_name)
-    extensions = re.compile(r'\/$')
-    match = extensions.search(folder_name)
-    return match
+    destination_file_name = os.path.basename(local_file_name)
+    return destination_file_name
 
 
-def generate_full_folder_name(folder_name):
+def enumerate_destination_file_name(s3_file_name, file_number=1):
     """
-    Add a trailing slash to the folder if it was missing one.
+    Append a number to the end of the provided destination file name.
+    Only used when multiple files are matched to, preventing the destination file from being continuously overwritten.
     """
-    folder_name = str(folder_name)
-    if check_folder_name_ends_with_slash(folder_name):
-        pass
+    destination_file_name = re.sub(
+        r'\.', f'_{file_number}.', destination_file_name, 1)
+    return destination_file_name
+
+
+def determine_destination_file_name(*, s3_key_name, destination_file_name, file_number=None):
+    """
+    Determine if the destination_file_name was provided, or should be extracted from the s3_file_name, 
+    or should be enumerated for multiple file downloads.
+    """
+    if destination_file_name:
+        if file_number:
+            destination_file_name = enumerate_destination_file_name(
+                destination_file_name, file_number)
+        else:
+            destination_file_name = destination_file_name
     else:
-        folder_name = folder_name + '/'
+        destination_file_name = extract_file_name_from_s3_key_name(
+            s3_key_name)
+
+    return destination_file_name
+
+
+def clean_folder_name(folder_name):
+    """
+    Cleans folders name by removing duplicate '/' as well as leading and trailing '/' characters.
+    """
+    folder_name = folder_name.strip('/')
+    if folder_name != '':
+        folder_name = os.path.normpath(folder_name)
     return folder_name
 
 
 def combine_folder_and_file_name(folder_name, file_name):
     """
-    Combine the folder name and file name together to create the _true_ object name.
+    Combine together the provided folder_name and file_name into one path variable.
     """
-    folder_name = generate_full_folder_name(folder_name)
-    object_name = f'{folder_name}{file_name}'
-    return object_name
+    combined_name = os.path.join(folder_name, file_name)
+    combined_name = os.path.normpath(combined_name)
+
+    return combined_name
+
+
+def determine_destination_name(destination_folder_name, destination_file_name, s3_key_name, file_number=None):
+    """
+    Determine the final destination name of the file being downloaded.
+    """
+    destination_file_name = determine_destination_file_name(
+        destination_file_name=destination_file_name, s3_key_name=s3_key_name, file_number=file_number)
+    destination_name = combine_folder_and_file_name(
+        destination_folder_name, destination_file_name)
+    return destination_name
 
 
 def upload_s3_file(file_name='', folder_name='', object_name='', bucket_name='', extra_args=None, s3_connection=None):
@@ -86,27 +126,16 @@ def upload_s3_file(file_name='', folder_name='', object_name='', bucket_name='',
     print(f'{file_name} successfully uploaded to {bucket_name}{folder_name or "/"}{object_name}')
 
 
-def determine_object_name(args):
-    """
-    Determine if the object name was provided or should be extracted from the local_file_name.
-    """
-    if not args.object_name:
-        if args.quantity == 'individual':
-            object_name = local_file_name
-        else:
-            object_name = args.object_name
-    else:
-        object_name = args.object_name
-    return object_name
-
-
 def main():
     args = getArgs()
     bucket_name = args.bucket_name
     local_file_name = args.local_file_name
+    local_folder_name = args.local_folder_name
+    s3_file_name = args.s3_file_name
+    s3_folder_prefix = args.s3_file_prefix
     object_name = determine_object_name(args)
-    quantity = args.quantity
-    prefix = args.prefix
+    local_file_name_match_type = args.local_file_name_match_type
+    s3_config = args.s3_config
     extra_args = args.extra_args
 
     s3_connection = connect_to_s3()
