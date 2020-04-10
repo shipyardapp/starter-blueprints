@@ -12,14 +12,14 @@ def getArgs(args=None):
     parser.add_argument('--local-file-name-match-type', dest='local_file_name_match_type',
                         choices={'exact_match', 'regex_match'}, required=True)
     parser.add_argument('--prefix', dest='prefix', default='', required=False)
-    parser.add_argument('--local-file-name',
+    parser.add_argument('--source-file-name',
                         dest='local_file_name', required=True)
-    parser.add_argument('--local-folder-name',
+    parser.add_argument('--source-folder-name',
                         dest='local_folder_name', required=True)
-    parser.add_argument('--s3-folder-prefix',
-                        dest='s3_folder_prefix', default=None, required=False)
-    parser.add_argument('--s3-file-name',
-                        dest='s3_file_name', default=None, required=False)
+    parser.add_argument('--destination-folder-name',
+                        dest='destination_folder_name', default=None, required=False)
+    parser.add_argument('--destination-file-name',
+                        dest='destination_file_name', default=None, required=False)
     parser.add_argument('--s3-config', dest='s3_config',
                         default=None, required=False)
     parser.add_argument('--s3-extra-args', dest='s3_extra_args',
@@ -38,16 +38,16 @@ def connect_to_s3(s3_config=None):
     return s3_connection
 
 
-def extract_file_name_from_local_file_name(local_file_name):
+def extract_file_name_from_source_full_path(source_full_path):
     """
-    Use the file name provided in the s3_file_name variable. Should be run only
+    Use the file name provided in the source_file_name variable. Should be run only
     if a destination_file_name is not provided.
     """
-    destination_file_name = os.path.basename(local_file_name)
+    destination_file_name = os.path.basename(source_full_path)
     return destination_file_name
 
 
-def enumerate_destination_file_name(s3_file_name, file_number=1):
+def enumerate_destination_file_name(destination_file_name, file_number=1):
     """
     Append a number to the end of the provided destination file name.
     Only used when multiple files are matched to, preventing the destination file from being continuously overwritten.
@@ -57,9 +57,9 @@ def enumerate_destination_file_name(s3_file_name, file_number=1):
     return destination_file_name
 
 
-def determine_destination_file_name(*, s3_key_name, destination_file_name, file_number=None):
+def determine_destination_file_name(*, source_full_path, destination_file_name, file_number=None):
     """
-    Determine if the destination_file_name was provided, or should be extracted from the s3_file_name, 
+    Determine if the destination_file_name was provided, or should be extracted from the source_file_name, 
     or should be enumerated for multiple file downloads.
     """
     if destination_file_name:
@@ -69,8 +69,8 @@ def determine_destination_file_name(*, s3_key_name, destination_file_name, file_
         else:
             destination_file_name = destination_file_name
     else:
-        destination_file_name = extract_file_name_from_s3_key_name(
-            s3_key_name)
+        destination_file_name = extract_file_name_from_source_full_path(
+            source_full_path)
 
     return destination_file_name
 
@@ -95,12 +95,12 @@ def combine_folder_and_file_name(folder_name, file_name):
     return combined_name
 
 
-def determine_destination_name(destination_folder_name, destination_file_name, s3_key_name, file_number=None):
+def determine_destination_name(destination_folder_name, destination_file_name, source_full_path, file_number=None):
     """
     Determine the final destination name of the file being downloaded.
     """
     destination_file_name = determine_destination_file_name(
-        destination_file_name=destination_file_name, s3_key_name=s3_key_name, file_number=file_number)
+        destination_file_name=destination_file_name, source_full_path=source_full_path, file_number=file_number)
     destination_name = combine_folder_and_file_name(
         destination_folder_name, destination_file_name)
     return destination_name
@@ -129,38 +129,34 @@ def upload_s3_file(file_name='', folder_name='', object_name='', bucket_name='',
 def main():
     args = getArgs()
     bucket_name = args.bucket_name
-    local_file_name = args.local_file_name
-    local_folder_name = args.local_folder_name
-    s3_file_name = args.s3_file_name
-    s3_folder_prefix = args.s3_file_prefix
+    source_file_name = args.source_file_name
+    source_folder_name = args.source_folder_name
+    destination_file_name = args.destination_file_name
+    destination_folder_name = args.destination_folder_name
     object_name = determine_object_name(args)
-    local_file_name_match_type = args.local_file_name_match_type
+    source_file_name_match_type = args.source_file_name_match_type
     s3_config = args.s3_config
     extra_args = args.extra_args
 
-    s3_connection = connect_to_s3()
+    s3_connection = connect_to_s3(s3_config)
 
-    if quantity == 'multiple':
-        file_name_re = re.compile(local_file_name)
-        i = 1
+    if source_file_name_match_type == 'regex_match':
+        file_names = find_all_s3_file_names(
+            s3_connection=s3_connection, bucket_name=bucket_name, source_folder_name=source_folder_name)
+        matching_file_names = find_all_file_matches(
+            file_names, re.compile(source_file_name))
+        print(f'{len(matching_file_names)} files found. Preparing to download...')
 
-        local_files = os.listdir()
-        for file in local_files:
-            if re.search(file_name_re, file):
+        for index, key_name in enumerate(matching_file_names):
+            destination_name = determine_destination_name(destination_folder_name=destination_folder_name,
+                                                          destination_file_name=args.destination_file_name, source_full_path=key_name, file_number=index+1)
+            print(f'Uploading file {index+1} of {len(matching_file_names)}')
+            upload_s3_file(file_name=key_name, folder_name=destination_folder_name, object_name=object_name_enumerated,
+                           bucket_name=bucket_name, extra_args=extra_args, s3_connection=s3_connection)
 
-                if object_name:
-                    if '.' in object_name:
-                        object_name_enumerated = re.sub(
-                            r'\.', f'_{i}.', object_name, 1)
-                    else:
-                        object_name_enumerated = f'{object_name}_{i}'
-
-                else:
-                    object_name_enumerated = file
-                upload_s3_file(file_name=file, folder_name=prefix, object_name=object_name_enumerated,
-                               bucket_name=bucket_name, extra_args=extra_args, s3_connection=s3_connection)
-                i += 1
     else:
+        destination_name = determine_destination_name(destination_folder_name=destination_folder_name,
+                                                      destination_file_name=args.destination_file_name, source_full_path=key_name, file_number=index+1)
         upload_s3_file(file_name=local_file_name, folder_name=prefix, object_name=object_name,
                        bucket_name=bucket_name, extra_args=extra_args, s3_connection=s3_connection)
 
