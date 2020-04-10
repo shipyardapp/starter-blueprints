@@ -10,11 +10,12 @@ import code
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--bucket-name', dest='bucket_name', required=True)
-    parser.add_argument('--s3-file-name-match-type', dest='s3_file_name_match_type',
+    parser.add_argument('--source-file-name-match-type', dest='source_file_name_match_type',
                         choices={'exact_match', 'regex_match'}, required=True)
-    parser.add_argument('--s3-folder-prefix',
-                        dest='s3_folder_prefix', default='', required=False)
-    parser.add_argument('--s3-file-name', dest='s3_file_name', required=True)
+    parser.add_argument('--source-folder-name',
+                        dest='source_folder_name', default='', required=False)
+    parser.add_argument('--source-file-name',
+                        dest='source_file_name', required=True)
     parser.add_argument('--destination-file-name',
                         dest='destination_file_name', default=None, required=False)
     parser.add_argument('--destination-folder-name',
@@ -35,12 +36,12 @@ def connect_to_s3(s3_config=None):
     return s3_connection
 
 
-def extract_file_name_from_s3_key_name(s3_key_name):
+def extract_file_name_from_source_full_path(source_full_path):
     """
-    Use the file name provided in the s3_file_name variable. Should be run only
+    Use the file name provided in the source_file_name variable. Should be run only
     if a destination_file_name is not provided.
     """
-    destination_file_name = os.path.basename(s3_key_name)
+    destination_file_name = os.path.basename(source_full_path)
     return destination_file_name
 
 
@@ -54,9 +55,9 @@ def enumerate_destination_file_name(destination_file_name, file_number=1):
     return destination_file_name
 
 
-def determine_destination_file_name(*, s3_key_name, destination_file_name, file_number=None):
+def determine_destination_file_name(*, source_full_path, destination_file_name, file_number=None):
     """
-    Determine if the destination_file_name was provided, or should be extracted from the s3_file_name, 
+    Determine if the destination_file_name was provided, or should be extracted from the source_file_name, 
     or should be enumerated for multiple file downloads.
     """
     if destination_file_name:
@@ -66,8 +67,8 @@ def determine_destination_file_name(*, s3_key_name, destination_file_name, file_
         else:
             destination_file_name = destination_file_name
     else:
-        destination_file_name = extract_file_name_from_s3_key_name(
-            s3_key_name)
+        destination_file_name = extract_file_name_from_source_full_path(
+            source_full_path)
 
     return destination_file_name
 
@@ -92,12 +93,12 @@ def combine_folder_and_file_name(folder_name, file_name):
     return combined_name
 
 
-def determine_destination_name(destination_folder_name, destination_file_name, s3_key_name, file_number=None):
+def determine_destination_name(destination_folder_name, destination_file_name, source_full_path, file_number=None):
     """
     Determine the final destination name of the file being downloaded.
     """
     destination_file_name = determine_destination_file_name(
-        destination_file_name=destination_file_name, s3_key_name=s3_key_name, file_number=file_number)
+        destination_file_name=destination_file_name, source_full_path=source_full_path, file_number=file_number)
     destination_name = combine_folder_and_file_name(
         destination_folder_name, destination_file_name)
     return destination_name
@@ -116,15 +117,7 @@ def list_s3_objects(s3_connection, bucket_name, prefix='', continuation_token=No
     return response
 
 
-def get_continuation_token(response):
-    """
-    Determine if a continuation token was provided in the S3 list_objects_v2 response.
-    """
-    continuation_token = response.get('NextContinuationToken')
-    return continuation_token
-
-
-def find_file_names(response):
+def find_s3_file_names(response):
     """
     Return all the objects found on S3 as a list.
     """
@@ -137,20 +130,20 @@ def find_file_names(response):
     return file_names
 
 
-def find_all_file_names(s3_connection, bucket_name, s3_folder_prefix=''):
+def find_all_s3_file_names(s3_connection, bucket_name, source_folder_name=''):
     """
-    Run the find_file_names() in a loop until no more continuation tokens are found.
-    Return a list of all s3_key_names.
+    Run the find_s3_file_names() in a loop until no more continuation tokens are found.
+    Return a list of all source_full_paths.
     """
     response = list_s3_objects(s3_connection=s3_connection,
-                               bucket_name=bucket_name, prefix=s3_folder_prefix)
-    file_names = find_file_names(response)
+                               bucket_name=bucket_name, prefix=source_folder_name)
+    file_names = find_s3_file_names(response)
     continuation_token = response.get('NextContinuationToken')
 
     while continuation_token:
         response = list_s3_objects(
-            s3_connection=s3_connection, bucket_name=bucket_name, prefix=s3_folder_prefix, continuation_token=continuation_token)
-        file_names = file_names.append(find_file_names(response))
+            s3_connection=s3_connection, bucket_name=bucket_name, prefix=source_folder_name, continuation_token=continuation_token)
+        file_names = file_names.append(find_s3_file_names(response))
         continuation_token = response.get('NextContinuationToken')
     return file_names
 
@@ -167,15 +160,15 @@ def find_all_file_matches(file_names, file_name_re):
     return matching_file_names
 
 
-def download_s3_file(s3_connection, bucket_name, s3_key_name, destination_file_name=None):
+def download_s3_file(s3_connection, bucket_name, source_full_path, destination_file_name=None):
     """
     Download a selected file from S3 to local storage in the current working directory.
     """
     local_path = os.path.normpath(f'{os.getcwd()}/{destination_file_name}')
 
-    s3_connection.download_file(bucket_name, s3_key_name, local_path)
+    s3_connection.download_file(bucket_name, source_full_path, local_path)
 
-    print(f'{bucket_name}/{s3_key_name} successfully downloaded to {local_path}')
+    print(f'{bucket_name}/{source_full_path} successfully downloaded to {local_path}')
 
     return
 
@@ -183,11 +176,11 @@ def download_s3_file(s3_connection, bucket_name, s3_key_name, destination_file_n
 def main():
     args = get_args()
     bucket_name = args.bucket_name
-    s3_file_name = args.s3_file_name
-    s3_folder_prefix = clean_folder_name(args.s3_folder_prefix)
-    s3_key_name = combine_folder_and_file_name(
-        folder_name=s3_folder_prefix, file_name=s3_file_name)
-    s3_file_name_match_type = args.s3_file_name_match_type
+    source_file_name = args.source_file_name
+    source_folder_name = clean_folder_name(args.source_folder_name)
+    source_full_path = combine_folder_and_file_name(
+        folder_name=source_folder_name, file_name=source_file_name)
+    source_file_name_match_type = args.source_file_name_match_type
     s3_config = args.s3_config
     destination_folder_name = clean_folder_name(args.destination_folder_name)
 
@@ -196,23 +189,23 @@ def main():
 
     s3_connection = connect_to_s3(s3_config)
 
-    if s3_file_name_match_type == 'regex_match':
-        file_names = find_all_file_names(
-            s3_connection=s3_connection, bucket_name=bucket_name, s3_folder_prefix=s3_folder_prefix)
+    if source_file_name_match_type == 'regex_match':
+        file_names = find_all_s3_file_names(
+            s3_connection=s3_connection, bucket_name=bucket_name, source_folder_name=source_folder_name)
         matching_file_names = find_all_file_matches(
-            file_names, re.compile(s3_file_name))
+            file_names, re.compile(source_file_name))
         print(f'{len(matching_file_names)} files found. Preparing to download...')
 
         for index, key_name in enumerate(matching_file_names):
             destination_name = determine_destination_name(destination_folder_name=destination_folder_name,
-                                                          destination_file_name=args.destination_file_name, s3_key_name=key_name, file_number=index+1)
+                                                          destination_file_name=args.destination_file_name, source_full_path=key_name, file_number=index+1)
             print(f'Downloading file {index+1} of {len(matching_file_names)}')
-            download_s3_file(bucket_name=bucket_name, s3_key_name=key_name,
+            download_s3_file(bucket_name=bucket_name, source_full_path=key_name,
                              destination_file_name=destination_name, s3_connection=s3_connection)
     else:
         destination_name = determine_destination_name(destination_folder_name=destination_folder_name,
-                                                      destination_file_name=args.destination_file_name, s3_key_name=s3_key_name)
-        download_s3_file(bucket_name=bucket_name, s3_key_name=s3_key_name,
+                                                      destination_file_name=args.destination_file_name, source_full_path=source_full_path)
+        download_s3_file(bucket_name=bucket_name, source_full_path=source_full_path,
                          destination_file_name=destination_name, s3_connection=s3_connection)
 
 
