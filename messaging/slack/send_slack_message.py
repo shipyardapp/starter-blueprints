@@ -24,7 +24,7 @@ def getArgs(args=None):
 
 
 def connect_to_slack(slack_token):
-    slack_connection = WebClient(os.environ.get(slack_token))
+    slack_connection = WebClient(slack_token)
     return slack_connection
 
 
@@ -50,9 +50,10 @@ def upload_file_to_slack(slack_connection, file_name, channel, timestamp):
     return message
 
 
-def get_message_timestamp(message_response):
-    message_timestamp = message_response['ts'] or message_response['message_ts']
-    return message_timestamp
+def get_message_details(message_response):
+    channel_id = message_response['channel']
+    timestamp = message_response['ts'] or message_response['message_ts']
+    return channel_id, timestamp
 
 
 def slack_user_id_lookup(slack_connection, name_to_lookup, user_lookup_method='display_name'):
@@ -118,25 +119,68 @@ def create_name_tags(user_id_list):
     return names_to_prepend
 
 
-def create_blocks(message, shipyard_link):
-    blocks = [{
+def create_blocks(message, shipyard_link, download_link=''):
+
+    message_section = {
         "type": "section",
         "text": {
             "type": "mrkdwn",
             "text": message,
             "verbatim": True
         }
-    },
-        {
-            "type": "context",
-            "elements": [
-                    {
-                        "type": "mrkdwn",
-                        "text": f"Sent by Shipyard | <{shipyard_link}|Click Here to Edit>"
-                    }
-            ]
     }
-    ]
+    divider_section = {
+        "type": "divider"
+    }
+    context_section = {
+        "type": "context",
+        "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"Sent by Shipyard | <{shipyard_link}|Click Here to Edit>"
+                }
+        ]
+    }
+
+    if download_link != '':
+        download_section = {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Download File"
+                    },
+                    "value": "file_download",
+                    "url": download_link,
+                    "style": "primary"
+                }
+            ]
+        }
+        blocks = [message_section, download_section,
+                  divider_section, context_section]
+    else:
+        blocks = [message_section, divider_section, context_section]
+
+    # if download_link != '':
+    #     message_section = {
+    #         "type": "section",
+    #         "text": {
+    #             "type": "mrkdwn",
+    #             "text": message,
+    #             "verbatim": True
+    #         }, "accessory": {
+    #             "type": "button",
+    #             "text": {
+    #                 "type": "plain_text",
+    #                 "text": "Download File"
+    #             },
+    #             "value": "download_link",
+    #             "style": "primary"
+    #         }
+    #     }
+
     return blocks
 
 
@@ -146,6 +190,20 @@ def create_shipyard_link(project_id, vessel_id, log_id):
     else:
         shipyard_link = 'https://www.shipyardapp.com'
     return shipyard_link
+
+
+def get_file_download_details(file_response):
+    timestamp = file_response['file']['timestamp']
+    download_link = file_response['file']['url_private_download']
+    return timestamp, download_link
+
+
+def update_slack_message(slack_connection, message, channel, blocks, timestamp):
+    response = slack_connection.chat_update(
+        channel=channel, link_names=True, text=message, blocks=blocks, ts=timestamp)
+    print(
+        f'Your public message of "{message}" was updated')
+    return message
 
 
 args = getArgs()
@@ -158,6 +216,7 @@ is_visible = args.is_visible.lower()
 source_file_name = args.source_file_name
 source_folder_name = args.source_folder_name
 
+
 project_id = os.environ.get('SHIPYARD_PROJECT_ID')
 vessel_id = os.environ.get('SHIPYARD_VESSEL_ID')
 log_id = os.environ.get('SHIPYARD_LOG_ID')
@@ -165,7 +224,8 @@ log_id = os.environ.get('SHIPYARD_LOG_ID')
 shipyard_link = create_shipyard_link(
     project_id=project_id, vessel_id=vessel_id, log_id=log_id)
 
-slack_connection = connect_to_slack('SHIPYARD_SLACK_TOKEN')
+slack_token = os.environ.get('SHIPYARD_SLACK_TOKEN')
+slack_connection = connect_to_slack(slack_token)
 user_id_list = create_user_id_list(users_to_notify)
 
 
@@ -176,7 +236,7 @@ if channel_type == 'dm':
         message_response = send_slack_message(
             slack_connection, message, user_id, create_blocks(message, shipyard_link))
         if source_file_name:
-            timestamp = get_message_timestamp(message_response)
+            channel_id, timestamp = get_message_details(message_response)
             file_response = upload_file_to_slack(
                 slack_connection, file_name=source_file_name, channel=channel, timestamp=timestamp)
 
@@ -188,7 +248,7 @@ else:
         message_response = send_slack_message(
             slack_connection, message, channel, create_blocks(message, shipyard_link))
         if source_file_name:
-            timestamp = get_message_timestamp(message_response)
+            channel_id, timestamp = get_message_details(message_response)
             file_response = upload_file_to_slack(
                 slack_connection, file_name=source_file_name, channel=channel, timestamp=timestamp)
     else:
@@ -197,9 +257,13 @@ else:
             message_response = send_private_slack_message(
                 slack_connection, message, channel, user_id, create_blocks(message, shipyard_link))
         if source_file_name:
-            timestamp = get_message_timestamp(message_response)
+            channel_id, timestamp = get_message_details(message_response)
             file_response = upload_file_to_slack(
                 slack_connection, file_name=source_file_name, channel=channel, timestamp=timestamp)
 
+file_timestamp, download_link = get_file_download_details(file_response)
+update_slack_message(slack_connection, message, channel=channel_id, blocks=create_blocks(
+    message, download_link=download_link, shipyard_link=shipyard_link), timestamp=timestamp)
 
-code.interact(local=locals())
+
+# code.interact(local=locals())
