@@ -44,14 +44,14 @@ def send_private_slack_message(slack_connection, message, channel, user):
     return message
 
 
-def upload_file_to_slack(slack_connection, file_name, message, channel):
+def upload_file_to_slack(slack_connection, file_name, message, channel, timestamp):
     message = slack_connection.files_upload(
-        file=file_name, filename=file_name, initial_comment=message, title=file_name, channels=channel)
+        file=file_name, filename=file_name, initial_comment=message, title=file_name, channels=channel, thread_ts=timestamp)
     return message
 
 
 def get_message_timestamp(message_response):
-    message_timestamp = message_response['ts']
+    message_timestamp = message_response['ts'] or message_response['message_ts']
     return message_timestamp
 
 
@@ -118,6 +118,39 @@ def create_name_tags(user_id_list):
     return names_to_prepend
 
 
+def create_blocks(message, shipyard_link):
+    blocks = [{
+        "type": "section",
+        "text": {
+            "type": "mrkdwn",
+            "text": message,
+            "verbatim": True
+        }
+    },
+        {
+        "type": "divider"
+    },
+        {
+            "type": "context",
+            "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "Sent by Shipyard | <shipyard_link|Click Here to Edit>"
+                    }
+            ]
+    }
+    ]
+    return blocks
+
+
+def generate_shipyard_link(project_id, vessel_id, log_id):
+    if project_id and vessel_id and log_id:
+        shipyard_link = f'https://app.shipyardapp.com/Shipyard/projects/{project_id}/vessels/{vessel_id}/logs/{log_id}'
+    else:
+        shipyard_link = 'https://www.shipyardapp.com'
+    return shipyard_link
+
+
 args = getArgs()
 channel_type = args.channel_type
 channel = args.channel
@@ -128,31 +161,16 @@ is_visible = args.is_visible.lower()
 source_file_name = args.source_file_name
 source_folder_name = args.source_folder_name
 
+project_id = os.environ.get('SHIPYARD_PROJECT_ID')
+vessel_id = os.environ.get('SHIPYARD_VESSEL_ID')
+log_id = os.environ.get('SHIPYARD_LOG_ID')
+
+shipyard_link = generate_shipyard_link(project_id=project_id,vessel_id=vessel_id,log_id=log_id)
+
 
 slack_connection = connect_to_slack('SHIPYARD_SLACK_TOKEN')
 user_id_list = create_user_id_list(users_to_notify)
 
-blocks = [{
-    "type": "section",
-    "text": {
-        "type": "mrkdwn",
-        "text": message,
-        "verbatim": True
-    }
-},
-    {
-    "type": "divider"
-},
-    {
-        "type": "context",
-        "elements": [
-                {
-                    "type": "mrkdwn",
-                    "text": "Sent by Shipyard | <www.shipyardapp.com|Click Here to Edit>"
-                }
-        ]
-}
-]
 
 if channel_type == 'dm':
     channel = user_id_list[0]
