@@ -2,6 +2,7 @@ from slack import WebClient
 import os
 import time
 import argparse
+import code
 
 
 def getArgs(args=None):
@@ -15,6 +16,10 @@ def getArgs(args=None):
     parser.add_argument('--message', dest='message')
     parser.add_argument('--is_visible', dest='is_visible',
                         default='True', required=True)
+    parser.add_argument('--source-file-name', dest='source_file_name',
+                        required=True)
+    parser.add_argument('--source-folder-name', dest='source_folder_name',
+                        default='', required=False)
     return parser.parse_args()
 
 
@@ -23,18 +28,31 @@ def connect_to_slack(slack_token):
     return slack_connection
 
 
-def send_slack_message(slack_connection, message, channel):
-    slack_connection.chat_postMessage(
-        channel=channel, link_names=True, text=message)
+def send_slack_message(slack_connection, message, channel, blocks):
+    message = slack_connection.chat_postMessage(
+        channel=channel, link_names=True, text=message, blocks=blocks)
     print(
         f'Your public message of "{message}" was successfully sent to {channel}')
+    return message
 
 
 def send_private_slack_message(slack_connection, message, channel, user):
-    slack_connection.chat_postEphemeral(
+    message = slack_connection.chat_postEphemeral(
         channel=channel, link_names=True, text=message, user=user)
     print(
         f'Your private message of "{message}" was successfully sent to {channel}')
+    return message
+
+
+def upload_file_to_slack(slack_connection, file_name, message, channel):
+    message = slack_connection.files_upload(
+        file=file_name, filename=file_name, initial_comment=message, title=file_name, channels=channel)
+    return message
+
+
+def get_message_timestamp(message_response):
+    message_timestamp = message_response['ts']
+    return message_timestamp
 
 
 def slack_user_id_lookup(slack_connection, name_to_lookup, user_lookup_method='display_name'):
@@ -107,10 +125,34 @@ message = args.message
 user_lookup_method = args.user_lookup_method
 users_to_notify = args.users_to_notify.lower()
 is_visible = args.is_visible.lower()
+source_file_name = args.source_file_name
+source_folder_name = args.source_folder_name
 
 
 slack_connection = connect_to_slack('SHIPYARD_SLACK_TOKEN')
 user_id_list = create_user_id_list(users_to_notify)
+
+blocks = [{
+    "type": "section",
+    "text": {
+        "type": "mrkdwn",
+        "text": message,
+        "verbatim": True
+    }
+},
+    {
+    "type": "divider"
+},
+    {
+        "type": "context",
+        "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": "Sent by Shipyard | <www.shipyardapp.com|Click Here to Edit>"
+                }
+        ]
+}
+]
 
 if channel_type == 'dm':
     channel = user_id_list[0]
@@ -120,14 +162,21 @@ print(f'Sending to {channel}...')
 if channel_type == 'dm':
     for user_id in user_id_list:
         print(user_id)
-        send_slack_message(slack_connection, message, user_id)
+        message_response = send_slack_message(
+            slack_connection, message, user_id, blocks)
+
 else:
     if is_visible in ('true', 'y', 'yes'):
         names_to_tag = create_name_tags(user_id_list)
         message = names_to_tag + message
-        send_slack_message(slack_connection, message, channel)
+        message_response = send_slack_message(
+            slack_connection, message, channel, blocks)
     else:
         for user_id in user_id_list:
             message = create_name_tags([user_id]) + message
-            send_private_slack_message(
+            message_response = send_private_slack_message(
                 slack_connection, message, channel, user_id)
+
+
+# timestamp = get_message_timestamp(message_response)
+code.interact(local=locals())
