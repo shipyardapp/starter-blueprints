@@ -36,17 +36,17 @@ def send_slack_message(slack_connection, message, channel, blocks):
     return message
 
 
-def send_private_slack_message(slack_connection, message, channel, user):
+def send_private_slack_message(slack_connection, message, channel, user, blocks):
     message = slack_connection.chat_postEphemeral(
-        channel=channel, link_names=True, text=message, user=user)
+        channel=channel, link_names=True, text=message, user=user, blocks=blocks)
     print(
         f'Your private message of "{message}" was successfully sent to {channel}')
     return message
 
 
-def upload_file_to_slack(slack_connection, file_name, message, channel, timestamp):
+def upload_file_to_slack(slack_connection, file_name, channel, timestamp):
     message = slack_connection.files_upload(
-        file=file_name, filename=file_name, initial_comment=message, title=file_name, channels=channel, thread_ts=timestamp)
+        file=file_name, filename=file_name, title=file_name, channels=channel, thread_ts=timestamp)
     return message
 
 
@@ -128,14 +128,11 @@ def create_blocks(message, shipyard_link):
         }
     },
         {
-        "type": "divider"
-    },
-        {
             "type": "context",
             "elements": [
                     {
                         "type": "mrkdwn",
-                        "text": "Sent by Shipyard | <shipyard_link|Click Here to Edit>"
+                        "text": f"Sent by Shipyard | <{shipyard_link}|Click Here to Edit>"
                     }
             ]
     }
@@ -143,7 +140,7 @@ def create_blocks(message, shipyard_link):
     return blocks
 
 
-def generate_shipyard_link(project_id, vessel_id, log_id):
+def create_shipyard_link(project_id, vessel_id, log_id):
     if project_id and vessel_id and log_id:
         shipyard_link = f'https://app.shipyardapp.com/Shipyard/projects/{project_id}/vessels/{vessel_id}/logs/{log_id}'
     else:
@@ -165,36 +162,44 @@ project_id = os.environ.get('SHIPYARD_PROJECT_ID')
 vessel_id = os.environ.get('SHIPYARD_VESSEL_ID')
 log_id = os.environ.get('SHIPYARD_LOG_ID')
 
-shipyard_link = generate_shipyard_link(project_id=project_id,vessel_id=vessel_id,log_id=log_id)
-
+shipyard_link = create_shipyard_link(
+    project_id=project_id, vessel_id=vessel_id, log_id=log_id)
 
 slack_connection = connect_to_slack('SHIPYARD_SLACK_TOKEN')
 user_id_list = create_user_id_list(users_to_notify)
 
 
-if channel_type == 'dm':
-    channel = user_id_list[0]
-
-print(f'Sending to {channel}...')
+# print(f'Sending to {channel}...')
 
 if channel_type == 'dm':
     for user_id in user_id_list:
-        print(user_id)
         message_response = send_slack_message(
-            slack_connection, message, user_id, blocks)
+            slack_connection, message, user_id, create_blocks(message, shipyard_link))
+        if source_file_name:
+            timestamp = get_message_timestamp(message_response)
+            file_response = upload_file_to_slack(
+                slack_connection, file_name=source_file_name, channel=channel, timestamp=timestamp)
 
 else:
     if is_visible in ('true', 'y', 'yes'):
         names_to_tag = create_name_tags(user_id_list)
         message = names_to_tag + message
+        create_blocks(message, shipyard_link)
         message_response = send_slack_message(
-            slack_connection, message, channel, blocks)
+            slack_connection, message, channel, create_blocks(message, shipyard_link))
+        if source_file_name:
+            timestamp = get_message_timestamp(message_response)
+            file_response = upload_file_to_slack(
+                slack_connection, file_name=source_file_name, channel=channel, timestamp=timestamp)
     else:
         for user_id in user_id_list:
             message = create_name_tags([user_id]) + message
             message_response = send_private_slack_message(
-                slack_connection, message, channel, user_id)
+                slack_connection, message, channel, user_id, create_blocks(message, shipyard_link))
+        if source_file_name:
+            timestamp = get_message_timestamp(message_response)
+            file_response = upload_file_to_slack(
+                slack_connection, file_name=source_file_name, channel=channel, timestamp=timestamp)
 
 
-# timestamp = get_message_timestamp(message_response)
 code.interact(local=locals())
