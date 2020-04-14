@@ -7,52 +7,43 @@ import code
 
 def getArgs(args=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--channel_type', dest='channel_type', required=True,
-                        choices={'public', 'private', 'dm'})
-    parser.add_argument('--channel', dest='channel')
-    parser.add_argument('--user_lookup_method', dest='user_lookup_method',
-                        choices={'display_name', 'real_name', 'email'})
-    parser.add_argument('--users_to_notify', dest='users_to_notify')
-    parser.add_argument('--message', dest='message')
-    parser.add_argument('--is_visible', dest='is_visible',
-                        default='True', required=True)
+    parser.add_argument('--destination-type', dest='destination_type', required=True,
+                        choices={'channel', 'dm'})
+    parser.add_argument('--channel-name', dest='channel_name', required=False)
+    parser.add_argument('--user-lookup-method', dest='user_lookup_method',
+                        choices={'display_name', 'real_name', 'email'}, required=False)
+    parser.add_argument('--users-to-notify',
+                        dest='users_to_notify', required=False)
+    parser.add_argument('--message', dest='message', required=True)
     parser.add_argument('--source-file-name', dest='source_file_name',
-                        required=True)
+                        required=False)
     parser.add_argument('--source-folder-name', dest='source_folder_name',
                         default='', required=False)
     return parser.parse_args()
 
 
-def connect_to_slack(slack_token):
-    slack_connection = WebClient(slack_token)
+def connect_to_slack():
+    slack_connection = WebClient(os.environ.get('SHIPYARD_SLACK_TOKEN'))
     return slack_connection
 
 
-def send_slack_message(slack_connection, message, channel, blocks):
-    message = slack_connection.chat_postMessage(
-        channel=channel, link_names=True, text=message, blocks=blocks)
+def send_slack_message(slack_connection, message, channel_name, blocks):
+    message_response = slack_connection.chat_postMessage(
+        channel=channel_name, link_names=True, text=message, blocks=blocks)
     print(
-        f'Your public message of "{message}" was successfully sent to {channel}')
-    return message
+        f'Your message of "{message}" was successfully sent to {channel_name}')
+    return response
 
 
-def send_private_slack_message(slack_connection, message, channel, user, blocks):
-    message = slack_connection.chat_postEphemeral(
-        channel=channel, link_names=True, text=message, user=user, blocks=blocks)
-    print(
-        f'Your private message of "{message}" was successfully sent to {channel}')
-    return message
-
-
-def upload_file_to_slack(slack_connection, file_name, channel, timestamp):
-    message = slack_connection.files_upload(
-        file=file_name, filename=file_name, title=file_name, channels=channel, thread_ts=timestamp)
-    return message
+def upload_file_to_slack(slack_connection, file_name, channel_name, timestamp):
+    file_response = slack_connection.files_upload(
+        file=file_name, filename=file_name, title=file_name, channels=channel_name, thread_ts=timestamp)
+    return file_response
 
 
 def get_message_details(message_response):
     channel_id = message_response['channel']
-    timestamp = message_response['ts'] or message_response['message_ts']
+    timestamp = message_response['ts']
     return channel_id, timestamp
 
 
@@ -163,24 +154,6 @@ def create_blocks(message, shipyard_link, download_link=''):
     else:
         blocks = [message_section, divider_section, context_section]
 
-    # if download_link != '':
-    #     message_section = {
-    #         "type": "section",
-    #         "text": {
-    #             "type": "mrkdwn",
-    #             "text": message,
-    #             "verbatim": True
-    #         }, "accessory": {
-    #             "type": "button",
-    #             "text": {
-    #                 "type": "plain_text",
-    #                 "text": "Download File"
-    #             },
-    #             "value": "download_link",
-    #             "style": "primary"
-    #         }
-    #     }
-
     return blocks
 
 
@@ -198,21 +171,20 @@ def get_file_download_details(file_response):
     return timestamp, download_link
 
 
-def update_slack_message(slack_connection, message, channel, blocks, timestamp):
+def update_slack_message(slack_connection, message, channel_id, blocks, timestamp):
     response = slack_connection.chat_update(
-        channel=channel, link_names=True, text=message, blocks=blocks, ts=timestamp)
+        channel=channel_id, link_names=True, text=message, blocks=blocks, ts=timestamp)
     print(
-        f'Your public message of "{message}" was updated')
+        f'Your message was updated')
     return message
 
 
 args = getArgs()
-channel_type = args.channel_type
-channel = args.channel
+destination_type = args.destination_type
+channel_name = args.channel_name
 message = args.message
 user_lookup_method = args.user_lookup_method
 users_to_notify = args.users_to_notify.lower()
-is_visible = args.is_visible.lower()
 source_file_name = args.source_file_name
 source_folder_name = args.source_folder_name
 
@@ -224,42 +196,30 @@ log_id = os.environ.get('SHIPYARD_LOG_ID')
 shipyard_link = create_shipyard_link(
     project_id=project_id, vessel_id=vessel_id, log_id=log_id)
 
-slack_token = os.environ.get('SHIPYARD_SLACK_TOKEN')
-slack_connection = connect_to_slack(slack_token)
+slack_connection = connect_to_slack()
 user_id_list = create_user_id_list(users_to_notify)
 
 
-# print(f'Sending to {channel}...')
-
-if channel_type == 'dm':
+if destination_type == 'dm':
     for user_id in user_id_list:
         message_response = send_slack_message(
             slack_connection, message, user_id, create_blocks(message, shipyard_link))
         if source_file_name:
             channel_id, timestamp = get_message_details(message_response)
             file_response = upload_file_to_slack(
-                slack_connection, file_name=source_file_name, channel=channel, timestamp=timestamp)
+                slack_connection, file_name=source_file_name, channel=user_id, timestamp=timestamp)
 
 else:
-    if is_visible in ('true', 'y', 'yes'):
-        names_to_tag = create_name_tags(user_id_list)
-        message = names_to_tag + message
-        create_blocks(message, shipyard_link)
-        message_response = send_slack_message(
-            slack_connection, message, channel, create_blocks(message, shipyard_link))
-        if source_file_name:
-            channel_id, timestamp = get_message_details(message_response)
-            file_response = upload_file_to_slack(
-                slack_connection, file_name=source_file_name, channel=channel, timestamp=timestamp)
-    else:
-        for user_id in user_id_list:
-            message = create_name_tags([user_id]) + message
-            message_response = send_private_slack_message(
-                slack_connection, message, channel, user_id, create_blocks(message, shipyard_link))
-        if source_file_name:
-            channel_id, timestamp = get_message_details(message_response)
-            file_response = upload_file_to_slack(
-                slack_connection, file_name=source_file_name, channel=channel, timestamp=timestamp)
+    names_to_tag = create_name_tags(user_id_list)
+    message = names_to_tag + message
+    create_blocks(message, shipyard_link)
+    message_response = send_slack_message(
+        slack_connection, message, channel_name, create_blocks(message, shipyard_link))
+    if source_file_name:
+        channel_id, timestamp = get_message_details(message_response)
+        file_response = upload_file_to_slack(
+            slack_connection, file_name=source_file_name, channel=channel_name, timestamp=timestamp)
+
 
 file_timestamp, download_link = get_file_download_details(file_response)
 update_slack_message(slack_connection, message, channel=channel_id, blocks=create_blocks(
