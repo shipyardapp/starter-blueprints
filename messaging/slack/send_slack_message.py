@@ -45,7 +45,8 @@ def upload_file_to_slack(slack_connection, file_name, channel_name, timestamp):
         file_response = slack_connection.files_upload(
             file=file_name, filename=file_name, title=file_name, channels=channel_name, thread_ts=timestamp)
         print(f'{file_name} successfully uploaded.')
-    except:
+    except Exception as e:
+        print(e)
         file_response = None
         print('File failed to upload.')
     return file_response
@@ -283,19 +284,27 @@ user_id_list = create_user_id_list(users_to_notify)
 
 if destination_type == 'dm':
     for user_id in user_id_list:
-        message_response = send_slack_message(
-            slack_connection, message, user_id, create_blocks(message, shipyard_link))
+
         if source_file_name:
+            message_with_file_status = message + \
+                '\n\n _(File is currently uploading...)_'
+            message_response = send_slack_message(
+                slack_connection, message_with_file_status, user_id, create_blocks(message_with_file_status, shipyard_link))
             file_to_upload = determine_file_to_upload(
                 source_file_name_match_type, source_folder_name, source_file_name)
             channel_id, timestamp = get_message_details(message_response)
             file_response = upload_file_to_slack(
                 slack_connection, file_name=file_to_upload, channel_name=user_id, timestamp=timestamp)
-            file_timestamp, download_link = get_file_download_details(
-                file_response)
-            update_slack_message(slack_connection, message, channel_id=channel_id, blocks=create_blocks(
-                message, download_link=download_link, shipyard_link=shipyard_link), timestamp=timestamp)
-
+            if file_response:
+                file_timestamp, download_link = get_file_download_details(
+                    file_response)
+                update_slack_message(slack_connection, message, channel_id=channel_id, blocks=create_blocks(
+                    message, download_link=download_link, shipyard_link=shipyard_link), timestamp=timestamp)
+            else:
+                message_with_file_status = message + \
+                    '\n\n _(File could not be uploaded. Check log for details)_'
+                update_slack_message(slack_connection, message, channel_id=channel_id, blocks=create_blocks(
+                    message_with_file_status, shipyard_link=shipyard_link), timestamp=timestamp)
 else:
     names_to_tag = create_name_tags(user_id_list)
     message = names_to_tag + message
