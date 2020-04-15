@@ -28,11 +28,20 @@ def getArgs(args=None):
 
 
 def connect_to_slack():
+    """
+    Create a connection to Slack, using a "Bot User OAuth Access Token"
+    stored under an environment variable of SLACK_TOKEN 
+    """
     slack_connection = WebClient(os.environ.get('SHIPYARD_SLACK_TOKEN'))
     return slack_connection
 
 
 def send_slack_message(slack_connection, message, channel_name, blocks):
+    """
+    Send a slack message to the channel of your choice.
+    Channel should be provided without a #
+    Blocks will contain the main message, with text serving as a backup.
+    """
     message_response = slack_connection.chat_postMessage(
         channel=channel_name, link_names=True, text=message, blocks=blocks)
     print(
@@ -41,6 +50,11 @@ def send_slack_message(slack_connection, message, channel_name, blocks):
 
 
 def upload_file_to_slack(slack_connection, file_name, channel_name, timestamp):
+    """
+    Upload a file to Slack in a thread under the main message.
+    All channel members will have access to the file.
+    Only works for files <50MB.
+    """
     try:
         file_response = slack_connection.files_upload(
             file=file_name, filename=file_name, title=file_name, channels=channel_name, thread_ts=timestamp)
@@ -53,12 +67,19 @@ def upload_file_to_slack(slack_connection, file_name, channel_name, timestamp):
 
 
 def get_message_details(message_response):
+    """
+    Return the channel_id and timestamp from the message_resposne. Used for updating the message
+    or responding in a thread to the message.
+    """
     channel_id = message_response['channel']
     timestamp = message_response['ts']
     return channel_id, timestamp
 
 
-def slack_user_id_lookup(slack_connection, name_to_lookup, user_lookup_method='display_name'):
+def slack_user_id_lookup(slack_connection, name_to_lookup, user_lookup_method):
+    """
+    Look up a user's Slack ID, using a provided search value and a lookup method.
+    """
     tries = 3
     for attempt in range(tries):
         try:
@@ -93,6 +114,9 @@ def slack_user_id_lookup(slack_connection, name_to_lookup, user_lookup_method='d
 
 
 def create_user_id_list(users_to_notify):
+    """
+    Create a list of all users to be notified.
+    """
     users_to_notify = users_to_notify.replace(
         ', ', ',').replace(' ,', ',').split(',')
     if type(users_to_notify) is str:
@@ -113,6 +137,10 @@ def create_user_id_list(users_to_notify):
 
 
 def create_name_tags(user_id_list):
+    """
+    Create a string that consists of all the user_id tags
+    that will be added at the beginning of a message.
+    """
     names_to_prepend = ''
 
     for user_id in user_id_list:
@@ -122,6 +150,11 @@ def create_name_tags(user_id_list):
 
 
 def create_blocks(message, shipyard_link, download_link=''):
+    """
+    Create blocks for the main message, a divider, and context that links to Shipyard.
+    If a download link is provided, creates a button block to immediately start that download.
+    For more information: https://api.slack.com/block-kit/building 
+    """
 
     message_section = {
         "type": "section",
@@ -169,6 +202,9 @@ def create_blocks(message, shipyard_link, download_link=''):
 
 
 def create_shipyard_link(project_id, vessel_id, log_id):
+    """
+    Create a link back to the Shipyard log page for the current alert.
+    """
     if project_id and vessel_id and log_id:
         shipyard_link = f'https://app.shipyardapp.com/Shipyard/projects/{project_id}/vessels/{vessel_id}/logs/{log_id}'
     else:
@@ -177,9 +213,12 @@ def create_shipyard_link(project_id, vessel_id, log_id):
 
 
 def get_file_download_details(file_response):
-    timestamp = file_response['file']['timestamp']
+    """
+    Return the download_link from the file_response. 
+    Used for updating the message with a download button.
+    """
     download_link = file_response['file']['url_private_download']
-    return timestamp, download_link
+    return download_link
 
 
 def update_slack_message(slack_connection, message, channel_id, blocks, timestamp):
@@ -224,6 +263,9 @@ def combine_folder_and_file_name(folder_name, file_name):
 
 
 def compress_files(file_names):
+    """
+    Given a list of files, compress all of them into a single file called archive.zip
+    """
     print(f'{len(file_names)} files found. Compressing the files...')
     with ZipFile('archive.zip', 'w') as zip_file:
         for path in file_names:
@@ -234,6 +276,10 @@ def compress_files(file_names):
 
 
 def is_too_large(file_path):
+    """
+    Determine if the file is too large for Slack's upload limit.
+    Used to conditionally compress a file.
+    """
     byte_max = 1000000000
     if os.stat(file_path).st_size >= byte_max:
         return True
@@ -242,6 +288,10 @@ def is_too_large(file_path):
 
 
 def determine_file_to_upload(source_file_name_match_type, source_folder_name, source_file_name):
+    """
+    Determine whether the file name being uploaded to Slack 
+    will be named archive.zip or will be the source_file_name provided.
+    """
     if source_file_name_match_type == 'regex_match':
         file_names = find_all_local_file_names(source_folder_name)
         matching_file_names = find_all_file_matches(
@@ -259,31 +309,57 @@ def determine_file_to_upload(source_file_name_match_type, source_folder_name, so
     return file_to_upload
 
 
-args = getArgs()
-destination_type = args.destination_type
-channel_name = args.channel_name
-message = args.message
-user_lookup_method = args.user_lookup_method
-users_to_notify = args.users_to_notify.lower()
-source_file_name = args.source_file_name
-source_folder_name = args.source_folder_name
-source_full_path = combine_folder_and_file_name(
-    folder_name=source_folder_name, file_name=source_file_name)
-source_file_name_match_type = args.source_file_name_match_type
+def main():
+    args = getArgs()
+    destination_type = args.destination_type
+    channel_name = args.channel_name
+    message = args.message
+    user_lookup_method = args.user_lookup_method
+    users_to_notify = args.users_to_notify.lower()
+    source_file_name = args.source_file_name
+    source_folder_name = args.source_folder_name
+    source_full_path = combine_folder_and_file_name(
+        folder_name=source_folder_name, file_name=source_file_name)
+    source_file_name_match_type = args.source_file_name_match_type
 
+    project_id = os.environ.get('SHIPYARD_PROJECT_ID')
+    vessel_id = os.environ.get('SHIPYARD_VESSEL_ID')
+    log_id = os.environ.get('SHIPYARD_LOG_ID')
+    shipyard_link = create_shipyard_link(
+        project_id=project_id, vessel_id=vessel_id, log_id=log_id)
 
-project_id = os.environ.get('SHIPYARD_PROJECT_ID')
-vessel_id = os.environ.get('SHIPYARD_VESSEL_ID')
-log_id = os.environ.get('SHIPYARD_LOG_ID')
-shipyard_link = create_shipyard_link(
-    project_id=project_id, vessel_id=vessel_id, log_id=log_id)
+    slack_connection = connect_to_slack()
+    user_id_list = create_user_id_list(users_to_notify)
 
-slack_connection = connect_to_slack()
-user_id_list = create_user_id_list(users_to_notify)
+    if destination_type == 'dm':
+        for user_id in user_id_list:
 
+            if source_file_name:
+                message_with_file_status = message + \
+                    '\n\n _(File is currently uploading...)_'
+                message_response = send_slack_message(
+                    slack_connection, message_with_file_status, user_id, create_blocks(message_with_file_status, shipyard_link))
+                file_to_upload = determine_file_to_upload(
+                    source_file_name_match_type, source_folder_name, source_file_name)
+                channel_id, timestamp = get_message_details(message_response)
+                file_response = upload_file_to_slack(
+                    slack_connection, file_name=file_to_upload, channel_name=user_id, timestamp=timestamp)
+                if file_response:
+                    download_link = get_file_download_details(file_response)
+                    update_slack_message(slack_connection, message, channel_id=channel_id, blocks=create_blocks(
+                        message, download_link=download_link, shipyard_link=shipyard_link), timestamp=timestamp)
+                else:
+                    message_with_file_status = message + \
+                        '\n\n _(File could not be uploaded. Check log for details)_'
+                    update_slack_message(slack_connection, message, channel_id=channel_id, blocks=create_blocks(
+                        message_with_file_status, shipyard_link=shipyard_link), timestamp=timestamp)
+            else:
+                message_response = send_slack_message(
+                    slack_connection, message, user_id, create_blocks(message, shipyard_link))
 
-if destination_type == 'dm':
-    for user_id in user_id_list:
+    else:
+        names_to_tag = create_name_tags(user_id_list)
+        message = names_to_tag + message
 
         if source_file_name:
             message_with_file_status = message + \
@@ -296,8 +372,7 @@ if destination_type == 'dm':
             file_response = upload_file_to_slack(
                 slack_connection, file_name=file_to_upload, channel_name=user_id, timestamp=timestamp)
             if file_response:
-                file_timestamp, download_link = get_file_download_details(
-                    file_response)
+                download_link = get_file_download_details(file_response)
                 update_slack_message(slack_connection, message, channel_id=channel_id, blocks=create_blocks(
                     message, download_link=download_link, shipyard_link=shipyard_link), timestamp=timestamp)
             else:
@@ -305,22 +380,10 @@ if destination_type == 'dm':
                     '\n\n _(File could not be uploaded. Check log for details)_'
                 update_slack_message(slack_connection, message, channel_id=channel_id, blocks=create_blocks(
                     message_with_file_status, shipyard_link=shipyard_link), timestamp=timestamp)
-else:
-    names_to_tag = create_name_tags(user_id_list)
-    message = names_to_tag + message
-    create_blocks(message, shipyard_link)
-    message_response = send_slack_message(
-        slack_connection, message, channel_name, create_blocks(message, shipyard_link))
-    if source_file_name:
-        file_to_upload = determine_file_to_upload(
-            source_file_name_match_type, source_folder_name, source_file_name)
-        channel_id, timestamp = get_message_details(message_response)
-        file_response = upload_file_to_slack(
-            slack_connection, file_name=file_to_upload, channel=channel_name, timestamp=timestamp)
-        file_timestamp, download_link = get_file_download_details(
-            file_response)
-        update_slack_message(slack_connection, message, channel_id=channel_id, blocks=create_blocks(
-            message, download_link=download_link, shipyard_link=shipyard_link), timestamp=timestamp)
+        else:
+            message_response = send_slack_message(
+                slack_connection, message, channel_name, create_blocks(message, shipyard_link))
 
 
-# code.interact(local=locals())
+if __name__ == '__main__':
+    main()
