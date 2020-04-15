@@ -241,8 +241,8 @@ def find_all_local_file_names(source_folder_name):
     filtered by source_folder_name if provided.
     """
     cwd = os.getcwd()
-    cwd_extension = os.path.normpath(f'{cwd}/{source_folder_name}/*')
-    file_names = glob.glob(cwd_extension)
+    cwd_extension = os.path.normpath(f'{cwd}/{source_folder_name}/**')
+    file_names = glob.glob(cwd_extension, recursive=True)
     return file_names
 
 
