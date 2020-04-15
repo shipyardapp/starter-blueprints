@@ -126,10 +126,8 @@ def create_user_id_list(slack_connection, users_to_notify, user_lookup_method):
 
     user_id_list = []
     for user in users_to_notify:
-        if user == '@here':
-            user_id_list.append('@here ')
-        elif user == '@channel':
-            user_id_list.append('@channel ')
+        if user in ['@here', '@channel', '@everyone']:
+            user_id_list.append(user.replace('@', ''))
         else:
             print('Looking up ' + user)
             user_id = slack_user_id_lookup(
@@ -146,7 +144,10 @@ def create_name_tags(user_id_list):
     names_to_prepend = ''
 
     for user_id in user_id_list:
-        names_to_prepend += ('<@' + user_id + '> ')
+        if user_id not in ['channel', 'here', 'everyone']:
+            names_to_prepend += f'<@{user_id}> '
+        else:
+            names_to_prepend += f'<!{user_id}> '
 
     return names_to_prepend
 
@@ -320,6 +321,11 @@ def determine_file_to_upload(source_file_name_match_type, source_folder_name, so
 
 
 def send_slack_message_with_file(slack_connection, message, channel, shipyard_link, file_to_upload):
+    """
+    Sends an initial Slack message with the file upload status in progress.
+    Attempts to upload the file. If successful, updates the first message with a download button.
+    If unsuccessful, updates the message to let users know.
+    """
     message_with_file_status = message + \
         '\n\n _(File is currently uploading...)_'
     message_response = send_slack_message(
@@ -351,7 +357,6 @@ def main():
     source_file_name_match_type = args.source_file_name_match_type
 
     shipyard_link = create_shipyard_link()
-
     slack_connection = connect_to_slack()
     user_id_list = create_user_id_list(
         slack_connection, users_to_notify, user_lookup_method)
