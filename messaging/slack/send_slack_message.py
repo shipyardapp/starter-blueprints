@@ -270,12 +270,14 @@ def combine_folder_and_file_name(folder_name, file_name):
 
 def compress_files(file_names):
     """
-    Given a list of files, compress all of them into a single file called archive.zip
+    Given a list of files, compress all of them into a single file called archive.zip.
+    Keeps the existing directory structure in tact.
     """
     print(f'{len(file_names)} files found. Compressing the files...')
+    cwd = os.getcwd()
     with ZipFile('archive.zip', 'w') as zip_file:
         for path in file_names:
-            zip_file.write(path)
+            zip_file.write(path, path.replace(cwd, ''))
     print(
         f'All {len(file_names)} files were successfully compressed into archive.zip')
     return
