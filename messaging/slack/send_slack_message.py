@@ -41,8 +41,13 @@ def send_slack_message(slack_connection, message, channel_name, blocks):
 
 
 def upload_file_to_slack(slack_connection, file_name, channel_name, timestamp):
-    file_response = slack_connection.files_upload(
-        file=file_name, filename=file_name, title=file_name, channels=channel_name, thread_ts=timestamp)
+    try:
+        file_response = slack_connection.files_upload(
+            file=file_name, filename=file_name, title=file_name, channels=channel_name, thread_ts=timestamp)
+        print(f'{file_name} successfully uploaded.')
+    except:
+        file_response = None
+        print('File failed to upload.')
     return file_response
 
 
