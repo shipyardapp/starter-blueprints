@@ -205,12 +205,13 @@ def create_shipyard_link():
     """
     Create a link back to the Shipyard log page for the current alert.
     """
+    org_name = os.environ.get('SHIPYARD_ORG_NAME')
     project_id = os.environ.get('SHIPYARD_PROJECT_ID')
     vessel_id = os.environ.get('SHIPYARD_VESSEL_ID')
     log_id = os.environ.get('SHIPYARD_LOG_ID')
 
     if project_id and vessel_id and log_id:
-        shipyard_link = f'https://app.shipyardapp.com/Shipyard/projects/{project_id}/vessels/{vessel_id}/logs/{log_id}'
+        shipyard_link = f'https://app.shipyardapp.com/{org_name}/projects/{project_id}/vessels/{vessel_id}/logs/{log_id}'
     else:
         shipyard_link = 'https://www.shipyardapp.com'
     return shipyard_link
