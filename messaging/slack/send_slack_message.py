@@ -269,17 +269,18 @@ def combine_folder_and_file_name(folder_name, file_name):
 
 def compress_files(file_names):
     """
-    Given a list of files, compress all of them into a single file called archive.zip.
+    Given a list of files, compress all of them into a single file.
     Keeps the existing directory structure in tact.
     """
+    archive_file_name = 'archive.zip'
     print(f'{len(file_names)} files found. Compressing the files...')
     cwd = os.getcwd()
-    with ZipFile('archive.zip', 'w') as zip_file:
+    with ZipFile(archive_file_name, 'w') as zip_file:
         for path in file_names:
             zip_file.write(path, path.replace(cwd, ''))
     print(
-        f'All {len(file_names)} files were successfully compressed into archive.zip')
-    return
+        f'All {len(file_names)} files were successfully compressed into {archive_file_name}')
+    return archive_file_name
 
 
 def is_too_large(file_path):
@@ -297,22 +298,20 @@ def is_too_large(file_path):
 def determine_file_to_upload(source_file_name_match_type, source_folder_name, source_file_name):
     """
     Determine whether the file name being uploaded to Slack 
-    will be named archive.zip or will be the source_file_name provided.
+    will be named archive_file_name or will be the source_file_name provided.
     """
     if source_file_name_match_type == 'regex_match':
         file_names = find_all_local_file_names(source_folder_name)
         matching_file_names = find_all_file_matches(
             file_names, re.compile(source_file_name))
 
-        compress_files(matching_file_names)
-        file_to_upload = 'archive.zip'
+        file_to_upload = compress_files(matching_file_names)
     else:
         source_full_path = combine_folder_and_file_name(
             folder_name=source_folder_name, file_name=source_file_name)
         if is_too_large(source_full_path):
             print(f'{source_full_path} is too large. Compressing the file...')
-            compress_files([source_full_path])
-            file_to_upload = 'archive.zip'
+            file_to_upload = compress_files([source_full_path])
         else:
             file_to_upload = source_full_path
     return file_to_upload
