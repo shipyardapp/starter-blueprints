@@ -92,7 +92,7 @@ def slack_user_id_lookup(slack_connection, name_to_lookup, user_lookup_method):
                 user_profile = users['members'][user]['profile']
                 user_value = user_profile.get(user_lookup_method, '')
 
-                if user_value.lower() == name_to_lookup:
+                if user_value.lower() == name_to_lookup.lower:
                     user_id = users['members'][user]['id']
                 else:
                     pass
@@ -107,7 +107,7 @@ def slack_user_id_lookup(slack_connection, name_to_lookup, user_lookup_method):
                 user_id = ''
                 print('We werent able to connect to slack properly, trying again')
                 print("")
-                if attempt != 2:
+                if attempt != tries - 1:
                     time.sleep(1)
             else:
                 print("Couldn't connect to slack, error " + str(e))
