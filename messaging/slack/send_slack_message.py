@@ -14,7 +14,7 @@ def getArgs(args=None):
                         choices={'channel', 'dm'})
     parser.add_argument('--channel-name', dest='channel_name', required=False)
     parser.add_argument('--user-lookup-method', dest='user_lookup_method',
-                        choices={'display_name', 'real_name', 'email'}, required=False)
+                        choices={'display_name', 'real_name', 'email'}, default='email', required=False)
     parser.add_argument('--users-to-notify',
                         dest='users_to_notify', required=False)
     parser.add_argument('--message', dest='message', required=True)
@@ -92,7 +92,7 @@ def slack_user_id_lookup(slack_connection, name_to_lookup, user_lookup_method):
                 user_profile = users['members'][user]['profile']
                 user_value = user_profile.get(user_lookup_method, '')
 
-                if user_value.lower() == name_to_lookup.lower:
+                if user_value.lower() == name_to_lookup.lower():
                     user_id = users['members'][user]['id']
                 else:
                     pass
@@ -119,10 +119,7 @@ def create_user_id_list(slack_connection, users_to_notify, user_lookup_method):
     """
     Create a list of all users to be notified.
     """
-    users_to_notify = users_to_notify.replace(
-        ', ', ',').replace(' ,', ',').split(',')
-    if type(users_to_notify) is str:
-        users_to_notify = [users_to_notify]
+    users_to_notify = [x.strip() for x in users_to_notify.split(',')]
 
     user_id_list = []
     for user in users_to_notify:
