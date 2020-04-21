@@ -90,9 +90,9 @@ def slack_user_id_lookup(slack_connection, name_to_lookup, user_lookup_method):
             user_id = ''
             for user in range(len(users['members'])):
                 user_profile = users['members'][user]['profile']
-                user_value = user_profile.get(user_lookup_method, '').lower()
+                user_value = user_profile.get(user_lookup_method, '')
 
-                if user_value == name_to_lookup:
+                if user_value.lower() == name_to_lookup:
                     user_id = users['members'][user]['id']
                 else:
                     pass
