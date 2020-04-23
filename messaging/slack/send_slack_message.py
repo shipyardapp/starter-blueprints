@@ -8,13 +8,13 @@ import re
 from zipfile import ZipFile
 
 
-def get_args(args=None):
+def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--destination-type', dest='destination_type', required=True,
                         choices={'channel', 'dm'})
     parser.add_argument('--channel-name', dest='channel_name', required=False)
     parser.add_argument('--user-lookup-method', dest='user_lookup_method',
-                        choices={'display_name', 'real_name', 'email'}, default='email', required=False)
+                        choices={'display_name', 'real_name', 'email'}, required=False)
     parser.add_argument('--users-to-notify',
                         dest='users_to_notify', required=False)
     parser.add_argument('--message', dest='message', required=True)
@@ -26,7 +26,22 @@ def get_args(args=None):
                         required=False)
     parser.add_argument('--source-folder-name', dest='source_folder_name',
                         default='', required=False)
-    return parser.parse_args()
+
+    args = parser.parse_args()
+    if args.destination_type == 'channel' and args.channel_name is None:
+        parser.error('--destination-type channel requires --channel-name')
+    elif args.destination_type == 'dm' and args.users_to_notify is None:
+        parser.error('--destination-type dm requires --users-to-notify')
+
+    if args.users_to_notify is not None and args.user_lookup_method is None:
+        parser.error('--users-to-notify requires a --user-lookup-method')
+
+    if args.file_upload == 'yes' and (args.source_file_name_match_type is None or args.source_file_name is None):
+        parser.error(
+            '--file-upload yes requires --source-file-name and --source-file-name-match-type')
+
+
+    return args
 
 
 def connect_to_slack():
