@@ -8,7 +8,7 @@ import re
 from zipfile import ZipFile
 
 
-def getArgs(args=None):
+def get_args(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--destination-type', dest='destination_type', required=True,
                         choices={'channel', 'dm'})
@@ -261,8 +261,7 @@ def combine_folder_and_file_name(folder_name, file_name):
     """
     Combine together the provided folder_name and file_name into one path variable.
     """
-    combined_name = os.path.join(folder_name, file_name)
-    combined_name = os.path.normpath(combined_name)
+    combined_name = os.path.normpath(f'{folder_name}/{file_name}')
 
     return combined_name
 
@@ -342,7 +341,7 @@ def send_slack_message_with_file(slack_connection, message, channel, shipyard_li
 
 
 def main():
-    args = getArgs()
+    args = get_args()
     destination_type = args.destination_type
     channel_name = args.channel_name
     message = args.message
