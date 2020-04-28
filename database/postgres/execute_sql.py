@@ -19,17 +19,21 @@ def get_args():
     return args
 
 
-args = get_args()
-username = args.username
-password = args.password
-host = args.host
-database = args.database
-port = args.port
-url_parameters = args.url_parameters
-query = text(args.query)
+def main():
+    args = get_args()
+    username = args.username
+    password = args.password
+    host = args.host
+    database = args.database
+    port = args.port
+    url_parameters = args.url_parameters
+    query = text(args.query)
+
+    db_string = f'postgresql://{username}:{password}@{host}:{port}/{database}?{url_parameters}'
+    db = create_engine(db_string)
+
+    db.execute(query)
 
 
-db_string = f'postgresql://{username}:{password}@{host}:{port}/{database}?{url_parameters}'
-db = create_engine(db_string)
-
-db.execute(query)
+if __name__ == '__main__':
+    main()
