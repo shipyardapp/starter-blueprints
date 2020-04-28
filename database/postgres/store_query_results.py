@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, text
 import argparse
-import code
+import os
 import pandas as pd
 
 
@@ -15,13 +15,45 @@ def get_args():
     parser.add_argument('--url-parameters',
                         dest='url_parameters', required=False)
     parser.add_argument('--query', dest='query', required=True)
+    parser.add_argument('--destination-file-name', dest='destination_file_name', default='output.csv',
+                        required=True)
+    parser.add_argument('--destination-folder-name', dest='destination_folder_name',
+                        default='', required=False)
+    parser.add_argument('--file-header', dest='file_header',
+                        default='True', required=False)
     args = parser.parse_args()
     return args
 
 
-def create_csv(query, db_connection, destination_file_path):
+def convert_to_boolean(string):
+    """
+    Shipyard can't support passing Booleans to code, so we have to convert
+    string values to their boolean values.
+    """
+    if string in ['True', 'true', 'TRUE']:
+        value = True
+    else:
+        value = False
+    return value
+
+
+def combine_folder_and_file_name(folder_name, file_name):
+    """
+    Combine together the provided folder_name and file_name into one path variable.
+    """
+    combined_name = os.path.normpath(
+        f'{folder_name}{"/" if folder_name else ""}{file_name}')
+
+    return combined_name
+
+
+def create_csv(query, db_connection, destination_file_path, file_header=True):
+    """
+    Read in data from a SQL query. Store the data as a csv.
+    """
     df = pd.read_sql_query(query, db_connection)
-    df.to_csv(destination_file_path)
+
+    df.to_csv(destination_file_path, header=file_header, index=False)
     return
 
 
@@ -33,12 +65,21 @@ def main():
     database = args.database
     port = args.port
     url_parameters = args.url_parameters
+    destination_file_name = args.destination_file_name
+    destination_folder_name = args.destination_folder_name
+    destination_full_path = combine_folder_and_file_name(
+        folder_name=destination_folder_name, file_name=destination_file_name)
+    file_header = convert_to_boolean(args.file_header)
     query = text(args.query)
 
     db_string = f'postgresql://{username}:{password}@{host}:{port}/{database}?{url_parameters}'
-    db = create_engine(db_string)
+    db_connection = create_engine(db_string)
 
-    create_csv(query, db, 'output.csv')
+    if not os.path.exists(destination_folder_name) and (destination_folder_name != ''):
+        os.makedirs(destination_folder_name)
+
+    create_csv(query=query, db_connection=db_connection,
+               destination_file_path=destination_full_path, file_header=file_header)
 
 
 if __name__ == '__main__':
