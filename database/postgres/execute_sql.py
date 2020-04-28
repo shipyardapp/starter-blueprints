@@ -1,5 +1,4 @@
 from sqlalchemy import create_engine, text
-# Must install psycopg2-binary
 import argparse
 import code
 
