@@ -1,6 +1,5 @@
 from sqlalchemy import create_engine, text
 import argparse
-import code
 
 
 def get_args():
