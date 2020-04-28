@@ -33,6 +33,7 @@ def main():
     db = create_engine(db_string)
 
     db.execute(query)
+    print('Your query has been successfully executed.')
 
 
 if __name__ == '__main__':
