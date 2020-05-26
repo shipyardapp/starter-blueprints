@@ -22,7 +22,28 @@ def get_args():
                         dest='destination_folder_name', default='', required=False)
     parser.add_argument('--s3-config', dest='s3_config',
                         default=None, required=False)
+    parser.add_argument('--aws-access-key-id',
+                        dest='aws_access_key_id', required=False)
+    parser.add_argument('--aws-secret-access-key',
+                        dest='aws_secret_access_key', required=False)
+    parser.add_argument('--aws-default-region',
+                        dest='aws_default_region', required=False)
     return parser.parse_args()
+
+
+def set_environment_variables(args):
+    """
+    Set AWS credentials as environment variables if they're provided via keyword arguments
+    rather than seeded as environment variables. This will override system defaults.
+    """
+
+    if args.aws_access_key_id:
+        os.environ['AWS_ACCESS_KEY_ID'] = args.aws_access_key_id
+    if args.aws_secret_access_key:
+        os.environ['AWS_SECRET_ACCESS_KEY'] = args.aws_secret_access_key
+    if args.aws_default_region:
+        os.environ['AWS_DEFAULT_REGION'] = args.aws_default_region
+    return
 
 
 def connect_to_s3(s3_config=None):
@@ -90,7 +111,7 @@ def combine_folder_and_file_name(folder_name, file_name):
     """
     Combine together the provided folder_name and file_name into one path variable.
     """
-    os.path.normpath(
+    combined_name = os.path.normpath(
         f'{folder_name}{"/" if folder_name else ""}{file_name}')
     combined_name = os.path.normpath(combined_name)
 
@@ -179,6 +200,7 @@ def download_s3_file(s3_connection, bucket_name, source_full_path, destination_f
 
 def main():
     args = get_args()
+    set_environment_variables(args)
     bucket_name = args.bucket_name
     source_file_name = args.source_file_name
     source_folder_name = clean_folder_name(args.source_folder_name)
