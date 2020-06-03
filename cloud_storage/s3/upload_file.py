@@ -126,7 +126,8 @@ def combine_folder_and_file_name(folder_name, file_name):
     """
     Combine together the provided folder_name and file_name into one path variable.
     """
-    combined_name = os.path.join(folder_name, file_name)
+    combined_name = os.path.normpath(
+        f'{folder_name}{"/" if folder_name else ""}{file_name}')
     combined_name = os.path.normpath(combined_name)
 
     return combined_name
