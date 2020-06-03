@@ -42,6 +42,21 @@ def getArgs(args=None):
     return parser.parse_args()
 
 
+def set_environment_variables(args):
+    """
+    Set AWS credentials as environment variables if they're provided via keyword arguments
+    rather than seeded as environment variables. This will override system defaults.
+    """
+
+    if args.aws_access_key_id:
+        os.environ['AWS_ACCESS_KEY_ID'] = args.aws_access_key_id
+    if args.aws_secret_access_key:
+        os.environ['AWS_SECRET_ACCESS_KEY'] = args.aws_secret_access_key
+    if args.aws_default_region:
+        os.environ['AWS_DEFAULT_REGION'] = args.aws_default_region
+    return
+
+
 def connect_to_s3(s3_config=None):
     """
     Create a connection to the S3 service using credentials provided as environment variables.
