@@ -7,7 +7,7 @@ import argparse
 import glob
 
 
-def getArgs(args=None):
+def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--bucket-name', dest='bucket_name', required=True)
     parser.add_argument(
@@ -17,10 +17,15 @@ def getArgs(args=None):
             'exact_match',
             'regex_match'},
         required=True)
-    parser.add_argument('--source-file-name',
-                        dest='source_file_name', required=True)
-    parser.add_argument('--source-folder-name',
-                        dest='source_folder_name', default='', required=False)
+    parser.add_argument(
+        '--source-file-name',
+        dest='source_file_name',
+        required=True)
+    parser.add_argument(
+        '--source-folder-name',
+        dest='source_folder_name',
+        default='',
+        required=False)
     parser.add_argument(
         '--destination-folder-name',
         dest='destination_folder_name',
@@ -31,14 +36,23 @@ def getArgs(args=None):
         dest='destination_file_name',
         default=None,
         required=False)
-    parser.add_argument('--s3-config', dest='s3_config',
-                        default=None, required=False)
-    parser.add_argument('--aws-access-key-id',
-                        dest='aws_access_key_id', required=False)
-    parser.add_argument('--aws-secret-access-key',
-                        dest='aws_secret_access_key', required=False)
-    parser.add_argument('--aws-default-region',
-                        dest='aws_default_region', required=False)
+    parser.add_argument(
+        '--s3-config',
+        dest='s3_config',
+        default=None,
+        required=False)
+    parser.add_argument(
+        '--aws-access-key-id',
+        dest='aws_access_key_id',
+        required=False)
+    parser.add_argument(
+        '--aws-secret-access-key',
+        dest='aws_secret_access_key',
+        required=False)
+    parser.add_argument(
+        '--aws-default-region',
+        dest='aws_default_region',
+        required=False)
     return parser.parse_args()
 
 
