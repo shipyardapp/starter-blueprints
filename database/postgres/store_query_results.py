@@ -61,9 +61,15 @@ def create_csv(query, db_connection, destination_file_path, file_header=True):
     """
     Read in data from a SQL query. Store the data as a csv.
     """
-    df = pd.read_sql_query(query, db_connection)
-
-    df.to_csv(destination_file_path, header=file_header, index=False)
+    i = 1
+    for chunk in pd.read_sql_query(query, db_connection, chunksize=10000):
+        if i == 1:
+            chunk.to_csv(destination_file_path, mode='a',
+                         header=file_header, index=False)
+        else:
+            chunk.to_csv(destination_file_path, mode='a',
+                         header=False, index=False)
+        i += 1
     return
 
 
@@ -83,7 +89,9 @@ def main():
     query = text(args.query)
 
     db_string = f'postgresql://{username}:{password}@{host}:{port}/{database}?{url_parameters}'
-    db_connection = create_engine(db_string)
+    db_connection = create_engine(
+        db_string, execution_options=dict(
+            stream_results=True))
 
     if not os.path.exists(destination_folder_name) and (
             destination_folder_name != ''):
