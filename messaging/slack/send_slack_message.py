@@ -432,7 +432,7 @@ def main():
     channel_name = args.channel_name
     message = args.message
     user_lookup_method = args.user_lookup_method
-    users_to_notify = args.users_to_notify.lower()
+    users_to_notify = args.users_to_notify
     file_upload = args.file_upload
     source_file_name = args.source_file_name
     source_folder_name = args.source_folder_name
@@ -440,8 +440,11 @@ def main():
 
     shipyard_link = create_shipyard_link()
     slack_connection = connect_to_slack()
-    user_id_list = create_user_id_list(
-        slack_connection, users_to_notify, user_lookup_method)
+    if users_to_notify is not None:
+        user_id_list = create_user_id_list(
+            slack_connection, users_to_notify, user_lookup_method)
+    else:
+        user_id_list = []
 
     if destination_type == 'dm':
         for user_id in user_id_list:
