@@ -210,7 +210,7 @@ def upload_s3_file(
 
 
 def main():
-    args = getArgs()
+    args = get_args()
     bucket_name = args.bucket_name
     source_file_name = args.source_file_name
     source_folder_name = args.source_folder_name
