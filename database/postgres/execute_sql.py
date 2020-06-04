@@ -1,12 +1,11 @@
 from sqlalchemy import create_engine, text
 import argparse
-import code
 
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--username', dest='username', required=True)
-    parser.add_argument('--password', dest='password', required=True)
+    parser.add_argument('--password', dest='password', required=False)
     parser.add_argument('--host', dest='host', required=True)
     parser.add_argument('--database',
                         dest='database', required=True)
