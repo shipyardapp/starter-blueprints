@@ -2,7 +2,6 @@ from slack import WebClient
 import os
 import time
 import argparse
-import code
 import glob
 import re
 from zipfile import ZipFile
@@ -54,6 +53,10 @@ def get_args():
         dest='source_folder_name',
         default='',
         required=False)
+    parser.add_argument(
+        '--slack-token',
+        dest='slack_token',
+        required=True)
 
     args = parser.parse_args()
     if args.destination_type == 'channel' and args.channel_name is None:
@@ -70,6 +73,17 @@ def get_args():
             '--file-upload yes requires --source-file-name and --source-file-name-match-type')
 
     return args
+
+
+def set_environment_variables(args):
+    """
+    Set slack token as environment variable if it is provided via keyword arguments
+    rather than seeded as environment variables. This will override system defaults.
+    """
+
+    if args.slack_token:
+        os.environ['SLACK_TOKEN'] = args.slack_token
+    return
 
 
 def connect_to_slack():
@@ -428,6 +442,7 @@ def send_slack_message_with_file(
 
 def main():
     args = get_args()
+    set_environment_variables(args)
     destination_type = args.destination_type
     channel_name = args.channel_name
     message = args.message
