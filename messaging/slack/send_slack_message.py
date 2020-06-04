@@ -10,22 +10,50 @@ from zipfile import ZipFile
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--destination-type', dest='destination_type', required=True,
-                        choices={'channel', 'dm'})
+    parser.add_argument(
+        '--destination-type',
+        dest='destination_type',
+        required=True,
+        choices={
+            'channel',
+            'dm'})
     parser.add_argument('--channel-name', dest='channel_name', required=False)
-    parser.add_argument('--user-lookup-method', dest='user_lookup_method',
-                        choices={'display_name', 'real_name', 'email'}, required=False)
-    parser.add_argument('--users-to-notify',
-                        dest='users_to_notify', required=False)
+    parser.add_argument(
+        '--user-lookup-method',
+        dest='user_lookup_method',
+        choices={
+            'display_name',
+            'real_name',
+            'email'},
+        required=False)
+    parser.add_argument(
+        '--users-to-notify',
+        dest='users_to_notify',
+        required=False)
     parser.add_argument('--message', dest='message', required=True)
-    parser.add_argument('--file-upload', dest='file_upload', required=True,
-                        choices={'yes', 'no'})
-    parser.add_argument('--source-file-name-match-type', dest='source_file_name_match_type',
-                        choices={'exact_match', 'regex_match'}, required=False)
-    parser.add_argument('--source-file-name', dest='source_file_name',
-                        required=False)
-    parser.add_argument('--source-folder-name', dest='source_folder_name',
-                        default='', required=False)
+    parser.add_argument(
+        '--file-upload',
+        dest='file_upload',
+        required=True,
+        choices={
+            'yes',
+            'no'})
+    parser.add_argument(
+        '--source-file-name-match-type',
+        dest='source_file_name_match_type',
+        choices={
+            'exact_match',
+            'regex_match'},
+        required=False)
+    parser.add_argument(
+        '--source-file-name',
+        dest='source_file_name',
+        required=False)
+    parser.add_argument(
+        '--source-folder-name',
+        dest='source_folder_name',
+        default='',
+        required=False)
 
     args = parser.parse_args()
     if args.destination_type == 'channel' and args.channel_name is None:
@@ -36,7 +64,8 @@ def get_args():
     if args.users_to_notify is not None and args.user_lookup_method is None:
         parser.error('--users-to-notify requires a --user-lookup-method')
 
-    if args.file_upload == 'yes' and (args.source_file_name_match_type is None or args.source_file_name is None):
+    if args.file_upload == 'yes' and (
+            args.source_file_name_match_type is None or args.source_file_name is None):
         parser.error(
             '--file-upload yes requires --source-file-name and --source-file-name-match-type')
 
@@ -46,7 +75,7 @@ def get_args():
 def connect_to_slack():
     """
     Create a connection to Slack, using a "Bot User OAuth Access Token"
-    stored under an environment variable of SLACK_TOKEN 
+    stored under an environment variable of SLACK_TOKEN
     """
     slack_connection = WebClient(os.environ.get('SLACK_TOKEN'))
     return slack_connection
@@ -73,7 +102,11 @@ def upload_file_to_slack(slack_connection, file_name, channel_name, timestamp):
     """
     try:
         file_response = slack_connection.files_upload(
-            file=file_name, filename=file_name, title=file_name, channels=channel_name, thread_ts=timestamp)
+            file=file_name,
+            filename=file_name,
+            title=file_name,
+            channels=channel_name,
+            thread_ts=timestamp)
         print(f'{file_name} successfully uploaded.')
     except Exception as e:
         print(e)
@@ -99,7 +132,7 @@ def slack_user_id_lookup(slack_connection, name_to_lookup, user_lookup_method):
     tries = 3
     for attempt in range(tries):
         try:
-            print('attempt ' + str(attempt+1))
+            print('attempt ' + str(attempt + 1))
             users = slack_connection.users_list()
             user_id = ''
             for user in range(len(users['members'])):
@@ -167,7 +200,7 @@ def create_blocks(message, shipyard_link, download_link=''):
     """
     Create blocks for the main message, a divider, and context that links to Shipyard.
     If a download link is provided, creates a button block to immediately start that download.
-    For more information: https://api.slack.com/block-kit/building 
+    For more information: https://api.slack.com/block-kit/building
     """
 
     message_section = {
@@ -233,16 +266,25 @@ def create_shipyard_link():
 
 def get_file_download_details(file_response):
     """
-    Return the download_link from the file_response. 
+    Return the download_link from the file_response.
     Used for updating the message with a download button.
     """
     download_link = file_response['file']['url_private_download']
     return download_link
 
 
-def update_slack_message(slack_connection, message, channel_id, blocks, timestamp):
+def update_slack_message(
+        slack_connection,
+        message,
+        channel_id,
+        blocks,
+        timestamp):
     response = slack_connection.chat_update(
-        channel=channel_id, link_names=True, text=message, blocks=blocks, ts=timestamp)
+        channel=channel_id,
+        link_names=True,
+        text=message,
+        blocks=blocks,
+        ts=timestamp)
     print(
         f'Your message was updated')
     return message
@@ -309,9 +351,12 @@ def is_too_large(file_path):
         return False
 
 
-def determine_file_to_upload(source_file_name_match_type, source_folder_name, source_file_name):
+def determine_file_to_upload(
+        source_file_name_match_type,
+        source_folder_name,
+        source_file_name):
     """
-    Determine whether the file name being uploaded to Slack 
+    Determine whether the file name being uploaded to Slack
     will be named archive_file_name or will be the source_file_name provided.
     """
     if source_file_name_match_type == 'regex_match':
@@ -331,7 +376,12 @@ def determine_file_to_upload(source_file_name_match_type, source_folder_name, so
     return file_to_upload
 
 
-def send_slack_message_with_file(slack_connection, message, channel, shipyard_link, file_to_upload):
+def send_slack_message_with_file(
+        slack_connection,
+        message,
+        channel,
+        shipyard_link,
+        file_to_upload):
     """
     Sends an initial Slack message with the file upload status in progress.
     Attempts to upload the file. If successful, updates the first message with a download button.
@@ -340,19 +390,40 @@ def send_slack_message_with_file(slack_connection, message, channel, shipyard_li
     message_with_file_status = message + \
         '\n\n _(File is currently uploading...)_'
     message_response = send_slack_message(
-        slack_connection, message_with_file_status, channel, create_blocks(message_with_file_status, shipyard_link))
+        slack_connection,
+        message_with_file_status,
+        channel,
+        create_blocks(
+            message_with_file_status,
+            shipyard_link))
     channel_id, timestamp = get_message_details(message_response)
     file_response = upload_file_to_slack(
-        slack_connection, file_name=file_to_upload, channel_name=channel, timestamp=timestamp)
+        slack_connection,
+        file_name=file_to_upload,
+        channel_name=channel,
+        timestamp=timestamp)
     if file_response:
         download_link = get_file_download_details(file_response)
-        update_slack_message(slack_connection, message, channel_id=channel_id, blocks=create_blocks(
-            message, download_link=download_link, shipyard_link=shipyard_link), timestamp=timestamp)
+        update_slack_message(
+            slack_connection,
+            message,
+            channel_id=channel_id,
+            blocks=create_blocks(
+                message,
+                download_link=download_link,
+                shipyard_link=shipyard_link),
+            timestamp=timestamp)
     else:
         message_with_file_status = message + \
             '\n\n _(File could not be uploaded. Check log for details)_'
-        update_slack_message(slack_connection, message, channel_id=channel_id, blocks=create_blocks(
-            message_with_file_status, shipyard_link=shipyard_link), timestamp=timestamp)
+        update_slack_message(
+            slack_connection,
+            message,
+            channel_id=channel_id,
+            blocks=create_blocks(
+                message_with_file_status,
+                shipyard_link=shipyard_link),
+            timestamp=timestamp)
 
 
 def main():
@@ -382,7 +453,12 @@ def main():
                     slack_connection, message, user_id, shipyard_link, file_to_upload)
             else:
                 send_slack_message(
-                    slack_connection, message, user_id, create_blocks(message, shipyard_link))
+                    slack_connection,
+                    message,
+                    user_id,
+                    create_blocks(
+                        message,
+                        shipyard_link))
 
     else:
         names_to_tag = create_name_tags(user_id_list)
@@ -392,10 +468,15 @@ def main():
             file_to_upload = determine_file_to_upload(
                 source_file_name_match_type, source_folder_name, source_file_name)
             send_slack_message_with_file(
-                slack_connection, message, channel_name, shipyard_link, file_to_upload)
+                slack_connection,
+                message,
+                channel_name,
+                shipyard_link,
+                file_to_upload)
         else:
             message_response = send_slack_message(
-                slack_connection, message, channel_name, create_blocks(message, shipyard_link))
+                slack_connection, message, channel_name, create_blocks(
+                    message, shipyard_link))
 
 
 if __name__ == '__main__':
