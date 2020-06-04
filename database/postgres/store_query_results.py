@@ -7,20 +7,30 @@ import pandas as pd
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--username', dest='username', required=True)
-    parser.add_argument('--password', dest='password', required=True)
+    parser.add_argument('--password', dest='password', required=False)
     parser.add_argument('--host', dest='host', required=True)
-    parser.add_argument('--database',
-                        dest='database', required=True)
+    parser.add_argument('--database', dest='database', required=True)
     parser.add_argument('--port', dest='port', default='5432', required=False)
-    parser.add_argument('--url-parameters',
-                        dest='url_parameters', required=False)
+    parser.add_argument(
+        '--url-parameters',
+        dest='url_parameters',
+        required=False)
     parser.add_argument('--query', dest='query', required=True)
-    parser.add_argument('--destination-file-name', dest='destination_file_name', default='output.csv',
-                        required=True)
-    parser.add_argument('--destination-folder-name', dest='destination_folder_name',
-                        default='', required=False)
-    parser.add_argument('--file-header', dest='file_header',
-                        default='True', required=False)
+    parser.add_argument(
+        '--destination-file-name',
+        dest='destination_file_name',
+        default='output.csv',
+        required=True)
+    parser.add_argument(
+        '--destination-folder-name',
+        dest='destination_folder_name',
+        default='',
+        required=False)
+    parser.add_argument(
+        '--file-header',
+        dest='file_header',
+        default='True',
+        required=False)
     args = parser.parse_args()
     return args
 
@@ -75,11 +85,15 @@ def main():
     db_string = f'postgresql://{username}:{password}@{host}:{port}/{database}?{url_parameters}'
     db_connection = create_engine(db_string)
 
-    if not os.path.exists(destination_folder_name) and (destination_folder_name != ''):
+    if not os.path.exists(destination_folder_name) and (
+            destination_folder_name != ''):
         os.makedirs(destination_folder_name)
 
-    create_csv(query=query, db_connection=db_connection,
-               destination_file_path=destination_full_path, file_header=file_header)
+    create_csv(
+        query=query,
+        db_connection=db_connection,
+        destination_file_path=destination_full_path,
+        file_header=file_header)
 
 
 if __name__ == '__main__':
