@@ -1,5 +1,4 @@
 import os
-import sys
 import re
 import argparse
 import glob
@@ -11,8 +10,6 @@ from gcloud.exceptions import *
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--bucket-name', dest='bucket_name', required=True)
-    parser.add_argument('--force-bucket-creation', dest='force_create',
-            default=False, required=False)
     parser.add_argument('--source-file-name-match-type',
             dest='source_file_name_match_type',
             choices={
@@ -178,41 +175,22 @@ def get_gclient():
     except Exception as e:
         print(f'Error accessing Google Cloud Storage with service account ' \
                 f'{args.gcp_application_credentials}')
-        sys.exit(1)
+        raise(e)
 
 
 def get_bucket(*,
         gclient,
-        force_create,
         bucket_name):
     """
-    Fetches and returns the bucket from Google Cloud Storage and creates it
-    if force_create is set to True
+    Fetches and returns the bucket from Google Cloud Storage
     """
-    if force_create:
-        try:
-            print(f'Creating bucket {bucket_name}')
-            gclient.create_bucket(bucket_name)
-        except Conflict as e:
-            print(f'Bucket {bucket_name} already exists')
-
     try:
         bucket = gclient.get_bucket(bucket_name)
     except NotFound as e:
         print(f'Bucket {bucket_name} does not exist\n {e}')
-        sys.exit(1)
+        raise(e)
 
     return bucket
-
-
-def check_force_create(force_create):
-    if not force_create:
-        return False
-
-    if force_create.lower() in ('yes', 'true', 't', 'y', '1'):
-        return True
-    else:
-        return False
 
 
 def main():
@@ -226,11 +204,9 @@ def main():
         file_name=source_file_name)
     destination_folder_name = clean_folder_name(args.destination_folder_name)
     source_file_name_match_type = args.source_file_name_match_type
-    force_create = check_force_create(args.force_create)
 
     gclient = get_gclient()
-    bucket = get_bucket(gclient=gclient, force_create=force_create,
-                    bucket_name=bucket_name)
+    bucket = get_bucket(gclient=gclient, bucket_name=bucket_name)
 
     if source_file_name_match_type == 'regex_match':
         file_names = find_all_local_file_names(source_folder_name)
