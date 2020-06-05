@@ -1,11 +1,13 @@
 import os
 import re
+import tempfile
 import argparse
 import glob
 
 from gcloud import storage
 from gcloud.exceptions import *
 
+CHUNK_SIZE = 512 * 1024 * 1024
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -35,9 +37,19 @@ def set_environment_variables(args):
     arguments rather than seeded as environment variables. This will override
     system defaults.
     """
-    if args.gcp_application_credentials:
-        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = args.gcp_application_credentials
-    return
+    credentials = args.gcp_application_credentials
+    try:
+        json_credentials = json.loads(credentials)
+        fd, path = tempfile.mkstemp()
+        print(f'Storing json credentials temporarily at {path}')
+        with os.fdopen(fd, 'w') as tmp:
+            tmp.write(credentials)
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = path
+        return path
+    except Exception:
+        print('Using specified json credentials file')
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials
+        return
 
 
 def extract_file_name_from_source_full_path(source_full_path):
@@ -132,8 +144,8 @@ def find_all_local_file_names(source_folder_name):
     filtered by source_folder_name if provided.
     """
     cwd = os.getcwd()
-    cwd_extension = os.path.normpath(f'{cwd}/{source_folder_name}/*')
-    file_names = glob.glob(cwd_extension)
+    cwd_extension = os.path.normpath(f'{cwd}/{source_folder_name}/**')
+    file_names = glob.glob(cwd_extension, recursive=True)
     return file_names
 
 
@@ -157,7 +169,7 @@ def upload_google_cloud_storage_file(
     """
     Uploads a single file to Google Cloud Storage.
     """
-    blob = bucket.blob(destination_full_path)
+    blob = bucket.blob(destination_full_path, chunk_size=CHUNK_SIZE)
     blob.upload_from_filename(source_full_path)
 
     print(f'{source_full_path} successfully uploaded to ' \
@@ -195,7 +207,7 @@ def get_bucket(*,
 
 def main():
     args = get_args()
-    set_environment_variables(args)
+    tmp_file = set_environment_variables(args)
     bucket_name = args.bucket_name
     source_file_name = args.source_file_name
     source_folder_name = args.source_folder_name
@@ -237,6 +249,9 @@ def main():
             destination_full_path=destination_full_path,
             bucket=bucket,
             gclient=gclient)
+    if tmp_file:
+        print(f'Removing temporary credentials file {tmp_file}')
+        os.remove(tmp_file)
 
 
 if __name__ == '__main__':
