@@ -1,5 +1,4 @@
 import os
-import sys
 import re
 import argparse
 
@@ -152,7 +151,7 @@ def get_gclient():
     except Exception as e:
         print(f'Error accessing Google Cloud Storage with service account ' \
                 f'{args.gcp_application_credentials}')
-        sys.exit()
+        raise(e)
 
     return gclient
 
@@ -167,7 +166,7 @@ def get_bucket(*,
         bucket = gclient.get_bucket(bucket_name)
     except NotFound as e:
         print(f'Bucket {bucket_name} does not exist\n {e}')
-        sys.exit()
+        raise(e)
 
     return bucket
 
