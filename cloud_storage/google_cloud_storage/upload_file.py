@@ -83,7 +83,7 @@ def determine_destination_file_name(
     """
     Determine if the destination_file_name was provided, or should be extracted
     from the source_file_name, or should be enumerated for multiple file
-    downloads.
+    uploads.
     """
     if destination_file_name:
         if file_number:
@@ -127,7 +127,7 @@ def determine_destination_full_path(
         source_full_path,
         file_number=None):
     """
-    Determine the final destination name of the file being downloaded.
+    Determine the final destination name of the file being uploaded.
     """
     destination_file_name = determine_destination_file_name(
         destination_file_name=destination_file_name,
