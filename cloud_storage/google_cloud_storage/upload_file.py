@@ -12,7 +12,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--bucket-name', dest='bucket_name', required=True)
     parser.add_argument('--force-bucket-creation', dest='force_create',
-            action='store_true', required=False)
+            default=False, required=False)
     parser.add_argument('--source-file-name-match-type',
             dest='source_file_name_match_type',
             choices={
@@ -174,10 +174,11 @@ def get_gclient():
     """
     try:
         gclient = storage.Client()
+        return gclient
     except Exception as e:
         print(f'Error accessing Google Cloud Storage with service account ' \
                 f'{args.gcp_application_credentials}')
-        sys.exit()
+        sys.exit(1)
 
 
 def get_bucket(*,
@@ -199,9 +200,19 @@ def get_bucket(*,
         bucket = gclient.get_bucket(bucket_name)
     except NotFound as e:
         print(f'Bucket {bucket_name} does not exist\n {e}')
-        sys.exit()
+        sys.exit(1)
 
     return bucket
+
+
+def check_force_create(force_create):
+    if not force_create:
+        return False
+
+    if force_create.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    else:
+        return False
 
 
 def main():
@@ -215,9 +226,10 @@ def main():
         file_name=source_file_name)
     destination_folder_name = clean_folder_name(args.destination_folder_name)
     source_file_name_match_type = args.source_file_name_match_type
+    force_create = check_force_create(args.force_create)
 
     gclient = get_gclient()
-    bucket = get_bucket(gclient=gclient, force_create=args.force_create,
+    bucket = get_bucket(gclient=gclient, force_create=force_create,
                     bucket_name=bucket_name)
 
     if source_file_name_match_type == 'regex_match':
