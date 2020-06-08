@@ -1,9 +1,11 @@
 import os
 import re
+import json
+import tempfile
 import argparse
 
-from gcloud import storage
-from gcloud.exceptions import *
+from google.cloud import storage
+from google.cloud.exceptions import *
 
 
 def get_args():
@@ -30,9 +32,19 @@ def set_environment_variables(args):
     arguments rather than seeded as environment variables. This will override
     system defaults.
     """
-    if args.gcp_application_credentials:
-        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = args.gcp_application_credentials
-    return
+    credentials = args.gcp_application_credentials
+    try:
+        json_credentials = json.loads(credentials)
+        fd, path = tempfile.mkstemp()
+        print(f'Storing json credentials temporarily at {path}')
+        with os.fdopen(fd, 'w') as tmp:
+            tmp.write(credentials)
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = path
+        return path
+    except Exception:
+        print('Using specified json credentials file')
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials
+        return
 
 
 def extract_file_name_from_source_full_path(source_full_path):
@@ -170,10 +182,25 @@ def get_bucket(*,
 
     return bucket
 
+def get_storage_blob(bucket, source_folder_name, source_file_name):
+    """
+    Fetches and returns the single source file blob from the buck on
+    Google Cloud Storage
+    """
+    source_path = source_file_name
+    if source_folder_name != '':
+        source_path = f'{source_folder_name}/{source_file_name}'
+    blob = bucket.get_blob(source_path)
+    try:
+        blob.exists()
+        return blob
+    except Exception as e:
+        print(f'File {source_path} does not exist')
+        raise(e)
 
 def main():
     args = get_args()
-    set_environment_variables(args)
+    tmp_file = set_environment_variables(args)
     bucket_name = args.bucket_name
     source_file_name = args.source_file_name
     source_folder_name = clean_folder_name(args.source_folder_name)
@@ -192,7 +219,6 @@ def main():
     if source_file_name_match_type == 'regex_match':
         file_names = find_google_cloud_storage_file_names(bucket=bucket,
                                             prefix=source_folder_name)
-        print(file_names)
         matching_file_names = find_matching_files(file_names,
                                             re.compile(source_file_name))
         print(f'{len(matching_file_names)} files found. Preparing to download...')
@@ -207,6 +233,9 @@ def main():
             download_google_cloud_storage_file(blob=blob,
                     destination_file_name=destination_name)
     else:
+        blob = get_storage_blob(bucket=bucket,
+                                source_folder_name=source_folder_name,
+                                source_file_name=source_file_name)
         destination_name = determine_destination_name(
                 destination_folder_name=destination_folder_name,
                 destination_file_name=args.destination_file_name,
@@ -214,6 +243,9 @@ def main():
 
         download_google_cloud_storage_file(blob=blob,
                 destination_file_name=destination_name)
+    if tmp_file:
+        print(f'Removing temporary credentials file {tmp_file}')
+        os.remove(tmp_file)
 
 
 if __name__ == '__main__':
