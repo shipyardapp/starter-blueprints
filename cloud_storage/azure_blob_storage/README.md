@@ -52,4 +52,3 @@ i.e. `test_file.txt-bu`, `test_file.txt123`, etc
 venv/bin/python cloud_storage/azure_blob_storage/download_file.py --container-name shipyard-test --source-file-name-match-type regex_match --source-file-name test_file.txt --source-folder-name tests/ --connection-string 'DefaultEndpointsProtocol=https;AccountName=testaccountname;AccountKey=some-long-key;EndpointSuffix=core.windows.net'
 
 ```
-

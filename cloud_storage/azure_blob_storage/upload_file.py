@@ -1,20 +1,15 @@
 import os
 import re
-
-import json
-import tempfile
 import argparse
 import glob
 
-from google.cloud import storage
-from google.cloud.exceptions import *
+from azure.storage.blob import BlobClient
+from azure.core import exceptions
 
-
-CHUNK_SIZE = 128 * 1024 * 1024
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--bucket-name', dest='bucket_name', required=True)
+    parser.add_argument('--container-name', dest='container_name', required=True)
     parser.add_argument('--source-file-name-match-type',
             dest='source_file_name_match_type',
             choices={
@@ -29,30 +24,9 @@ def get_args():
             dest='destination_folder_name', default='', required=False)
     parser.add_argument('--destination-file-name', dest='destination_file_name',
             default=None, required=False)
-    parser.add_argument('--service-account', dest='gcp_application_credentials',
+    parser.add_argument('--connection-string', dest='connection_string',
             default=None, required=True)
     return parser.parse_args()
-
-
-def set_environment_variables(args):
-    """
-    Set GCP credentials as environment variables if they're provided via keyword
-    arguments rather than seeded as environment variables. This will override
-    system defaults.
-    """
-    credentials = args.gcp_application_credentials
-    try:
-        json_credentials = json.loads(credentials)
-        fd, path = tempfile.mkstemp()
-        print(f'Storing json credentials temporarily at {path}')
-        with os.fdopen(fd, 'w') as tmp:
-            tmp.write(credentials)
-        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = path
-        return path
-    except Exception:
-        print('Using specified json credentials file')
-        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials
-        return
 
 
 def extract_file_name_from_source_full_path(source_full_path):
@@ -164,54 +138,36 @@ def find_all_file_matches(file_names, file_name_re):
     return matching_file_names
 
 
-def upload_google_cloud_storage_file(
-        gclient,
-        bucket,
+def upload_azure_storage_blob_file(
+        connection_string,
+        container_name,
         source_full_path,
         destination_full_path):
     """
-    Uploads a single file to Google Cloud Storage.
+    Uploads a single file to Azure Storage Blob.
     """
-    blob = bucket.blob(destination_full_path, chunk_size=CHUNK_SIZE)
-    blob.upload_from_filename(source_full_path)
+    blob = BlobClient.from_connection_string(conn_str=connection_string,
+                container_name=container_name,
+                blob_name=destination_full_path)
+
+    try:
+        with open(source_full_path, "rb") as data:
+            blob.upload_blob(data)
+    except exceptions.ResourceNotFoundError as e:
+        print(f'Container "{container_name}" does not exist')
+        raise(e)
+    except exceptions.ResourceExistsError as e:
+        print(f'File "{source_full_path}" already exists in the container')
+        raise(e)
 
     print(f'{source_full_path} successfully uploaded to ' \
-            f'{bucket.name}/{destination_full_path}')
-
-
-def get_gclient():
-    """
-    Attempts to create the Google Cloud Storage Client with the associated
-    environment variables
-    """
-    try:
-        gclient = storage.Client()
-        return gclient
-    except Exception as e:
-        print(f'Error accessing Google Cloud Storage with service account ' \
-                f'{args.gcp_application_credentials}')
-        raise(e)
-
-
-def get_bucket(*,
-        gclient,
-        bucket_name):
-    """
-    Fetches and returns the bucket from Google Cloud Storage
-    """
-    try:
-        bucket = gclient.get_bucket(bucket_name)
-    except NotFound as e:
-        print(f'Bucket {bucket_name} does not exist\n {e}')
-        raise(e)
-
-    return bucket
+            f'{container_name}/{destination_full_path}')
 
 
 def main():
     args = get_args()
-    tmp_file = set_environment_variables(args)
-    bucket_name = args.bucket_name
+    container_name = args.container_name
+    connection_string = args.connection_string
     source_file_name = args.source_file_name
     source_folder_name = args.source_folder_name
     source_full_path = combine_folder_and_file_name(
@@ -219,9 +175,6 @@ def main():
         file_name=source_file_name)
     destination_folder_name = clean_folder_name(args.destination_folder_name)
     source_file_name_match_type = args.source_file_name_match_type
-
-    gclient = get_gclient()
-    bucket = get_bucket(gclient=gclient, bucket_name=bucket_name)
 
     if source_file_name_match_type == 'regex_match':
         file_names = find_all_local_file_names(source_folder_name)
@@ -236,25 +189,22 @@ def main():
                 source_full_path=key_name,
                 file_number=index + 1)
             print(f'Uploading file {index+1} of {len(matching_file_names)}')
-            upload_google_cloud_storage_file(
+            upload_azure_storage_blob_file(
                 source_full_path=key_name,
                 destination_full_path=destination_full_path,
-                bucket=bucket,
-                gclient=gclient)
+                container_name=container_name,
+                connection_string=connection_string)
 
     else:
         destination_full_path = determine_destination_full_path(
             destination_folder_name=destination_folder_name,
             destination_file_name=args.destination_file_name,
             source_full_path=source_full_path)
-        upload_google_cloud_storage_file(
+        upload_azure_storage_blob_file(
             source_full_path=source_full_path,
             destination_full_path=destination_full_path,
-            bucket=bucket,
-            gclient=gclient)
-    if tmp_file:
-        print(f'Removing temporary credentials file {tmp_file}')
-        os.remove(tmp_file)
+            container_name=container_name,
+            connection_string=connection_string)
 
 
 if __name__ == '__main__':
