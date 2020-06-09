@@ -1,2 +1,2 @@
-gcloud==0.18.3
+google-cloud-storage==1.28.1
 httplib2==0.15.0

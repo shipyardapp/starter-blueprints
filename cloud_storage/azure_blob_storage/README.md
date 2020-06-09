@@ -32,3 +32,23 @@ venv/bin/python cloud_storage/azure_blob_storage/upload_file.py --container-name
 
 ```
 
+## Download
+
+From the `starter-blueprints/` directory
+```
+Demo command
+
+venv/bin/python cloud_storage/azure_blob_storage/download_file.py --container-name CONTAINER_NAME --source-file-name-match-type (exact_match/regex_match) --source-file-name SOURCE_NAME --source-folder-name SOURCE_FOLDER --connection-string 'SOME-CONNECTION-STRING'
+
+This will download the `test_file.txt` file in the `shipyard-test` container to
+the local CWD
+
+venv/bin/python cloud_storage/azure_blob_storage/download_file.py --container-name shipyard-test --source-file-name-match-type regex_match --source-file-name test_file.txt --source-folder-name tests/ --connection-string 'DefaultEndpointsProtocol=https;AccountName=testaccountname;AccountKey=some-long-key;EndpointSuffix=core.windows.net'
+
+This will download all files in the tests/ directory in the `shipyard-test` container
+that regex match `test_file.txt` to the local CWD
+i.e. `test_file.txt-bu`, `test_file.txt123`, etc
+
+venv/bin/python cloud_storage/azure_blob_storage/download_file.py --container-name shipyard-test --source-file-name-match-type regex_match --source-file-name test_file.txt --source-folder-name tests/ --connection-string 'DefaultEndpointsProtocol=https;AccountName=testaccountname;AccountKey=some-long-key;EndpointSuffix=core.windows.net'
+
+```

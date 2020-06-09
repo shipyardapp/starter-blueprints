@@ -1,13 +1,16 @@
 import os
 import re
+
+import json
 import tempfile
 import argparse
 import glob
 
-from gcloud import storage
-from gcloud.exceptions import *
+from google.cloud import storage
+from google.cloud.exceptions import *
 
-CHUNK_SIZE = 512 * 1024 * 1024
+
+CHUNK_SIZE = 128 * 1024 * 1024
 
 def get_args():
     parser = argparse.ArgumentParser()
