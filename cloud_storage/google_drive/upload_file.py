@@ -225,7 +225,7 @@ def upload_google_drive_file(
     if parent_folder_id:
         file_metadata['parents'] = [parent_folder_id]
 
-    media = MediaFileUpload(source_full_path)
+    media = MediaFileUpload(source_full_path, resumable=True)
     try:
         _file = service.files().create(body=file_metadata, media_body=media,
                                        supportsAllDrives=True,
