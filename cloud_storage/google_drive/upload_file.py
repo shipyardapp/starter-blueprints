@@ -191,7 +191,7 @@ def find_folder_id(service, destination_folder_name):
         # build query string
         if parent_id:
             query = 'mimeType = \'application/vnd.google-apps.folder\'' \
-                f' and name=\'{folder}\' and \'{parent_id}\''
+                f' and name=\'{folder}\' and \'{parent_id}\' in parents'
         else:
             query = 'mimeType = \'application/vnd.google-apps.folder\'' \
                 f' and name=\'{folder}\''
@@ -212,20 +212,24 @@ def find_folder_id(service, destination_folder_name):
 def upload_google_drive_file(
         service,
         source_full_path,
-        destination_full_path):
+        destination_full_path,
+        parent_folder_id):
     """
     Uploads a single file to Google Drive.
     """
     file_metadata = {'name': destination_full_path}
+    file_name = destination_full_path.rsplit('/', 1)[-1]
+    if file_name:
+        file_metadata = {'name': file_name}
 
-    parent_folder_id = find_folder_id(service, destination_full_path)
     if parent_folder_id:
         file_metadata['parents'] = [parent_folder_id]
 
     media = MediaFileUpload(source_full_path)
     try:
         _file = service.files().create(body=file_metadata, media_body=media,
-                                    fields=('id')).execute()
+                                       supportsAllDrives=True,
+                                       fields=('id')).execute()
     except Exception as e:
         raise (e)
 
@@ -273,25 +277,41 @@ def main():
 
         for index, key_name in enumerate(matching_file_names):
             destination_full_path = determine_destination_full_path(
-                destination_folder_name=destination_folder_name,
-                destination_file_name=args.destination_file_name,
-                source_full_path=key_name,
-                file_number=index + 1)
+                            destination_folder_name=destination_folder_name,
+                            destination_file_name=args.destination_file_name,
+                            source_full_path=key_name, file_number=index + 1)
+
+            # if destination folder is specified, confirm the folder exists
+            parent_folder_id = None
+            if destination_folder_name:
+                parent_folder_id = find_folder_id(service, destination_full_path)
+                if not parent_folder_id:
+                    print(f'Folder {destination_folder_name} does not exist')
+                    return
+
             print(f'Uploading file {index+1} of {len(matching_file_names)}')
             upload_google_drive_file(
                 source_full_path=key_name,
                 destination_full_path=destination_full_path,
-                service=service)
+                service=service, parent_folder_id=parent_folder_id)
 
     else:
         destination_full_path = determine_destination_full_path(
-            destination_folder_name=destination_folder_name,
-            destination_file_name=args.destination_file_name,
-            source_full_path=source_full_path)
+                            destination_folder_name=destination_folder_name,
+                            destination_file_name=args.destination_file_name,
+                            source_full_path=source_full_path)
+        # if destination folder is specified, confirm the folder exists
+        parent_folder_id = None
+        if destination_folder_name:
+            parent_folder_id = find_folder_id(service, destination_full_path)
+            if not parent_folder_id:
+                print(f'Folder {destination_folder_name} does not exist')
+                return
+
         upload_google_drive_file(
             source_full_path=source_full_path,
             destination_full_path=destination_full_path,
-            service=service)
+            service=service, parent_folder_id=parent_folder_id)
     if tmp_file:
         print(f'Removing temporary credentials file {tmp_file}')
         os.remove(tmp_file)
