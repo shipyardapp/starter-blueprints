@@ -28,13 +28,13 @@ venv/bin/python cloud_storage/dropbox/upload_file.py --source-file-name-match-ty
 This will upload the single file `test_file.txt` in the `tests` directory to the 
 root dropbox folder
 
-venv/bin/python cloud_storage/dropbox/upload_file.py --source-file-name-match-type regex_match --source-file-name test_file.txt --source-folder-name tests/ --access-key 'fT87blahTblahAAAAAAAblahO54nviTug-n7CblblahpMB6kblahvIqWfhH9ak4'
+venv/bin/python cloud_storage/dropbox/upload_file.py --source-file-name-match-type regex_match --source-file-name test_file.txt --source-folder-name tests/ --access-key 'ExampleAccessKeyXXXXXXXXXXXXXXXXX-XXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
 
 This will upload all files in the tests directory recursively that regex match
 `test_file.txt` to the TEST_FOLDER.
 i.e. `test_file.txt-bu`, `test_file.txt123`, etc
 
-venv/bin/python cloud_storage/dropbox/upload_file.py --source-file-name-match-type regex_match --source-file-name test_file.txt --source-folder-name tests/ --destination-folder-name TEST_FOLDER --access-key 'fT87blahTblahAAAAAAAblahO54nviTug-n7CblblahpMB6kblahvIqWfhH9ak4'
+venv/bin/python cloud_storage/dropbox/upload_file.py --source-file-name-match-type regex_match --source-file-name test_file.txt --source-folder-name tests/ --destination-folder-name TEST_FOLDER --access-key 'ExampleAccessKeyXXXXXXXXXXXXXXXXX-XXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
 
 ```
 
@@ -49,13 +49,13 @@ venv/bin/python cloud_storage/dropbox/download_file.py --source-file-name-match-
 This will download the `test_file.txt` file in the tests/ folder to
 the local CWD
 
-venv/bin/python cloud_storage/dropbox/download_file.py --source-file-name-match-type regex_match --source-file-name test_file.txt --source-folder-name tests/ --access-key 'fT87blahTblahAAAAAAAblahO54nviTug-n7CblblahpMB6kblahvIqWfhH9ak4'
+venv/bin/python cloud_storage/dropbox/download_file.py --source-file-name-match-type regex_match --source-file-name test_file.txt --source-folder-name tests/ --access-key 'ExampleAccessKeyXXXXXXXXXXXXXXXXX-XXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
 
 This will download all files in the tests/ directory in the tests/ folder
 that regex match `test_file.txt` to the local CWD
 i.e. `test_file.txt-bu`, `test_file.txt123`, etc
 
-venv/bin/python cloud_storage/dropbox/download_file.py --source-file-name-match-type regex_match --source-file-name test_file.txt --source-folder-name tests/ --access-key 'fT87blahTblahAAAAAAAblahO54nviTug-n7CblblahpMB6kblahvIqWfhH9ak4'
+venv/bin/python cloud_storage/dropbox/download_file.py --source-file-name-match-type regex_match --source-file-name test_file.txt --source-folder-name tests/ --access-key 'ExampleAccessKeyXXXXXXXXXXXXXXXXX-XXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
 
 ```
 
