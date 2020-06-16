@@ -225,12 +225,13 @@ def upload_google_drive_file(
     if parent_folder_id:
         file_metadata['parents'] = [parent_folder_id]
 
-    media = MediaFileUpload(source_full_path, resumable=True)
     try:
+        media = MediaFileUpload(source_full_path, resumable=True)
         _file = service.files().create(body=file_metadata, media_body=media,
                                        supportsAllDrives=True,
                                        fields=('id')).execute()
     except Exception as e:
+        print(f'Failed to upload file: {file_name}')
         raise (e)
 
     print(f'{source_full_path} successfully uploaded to ' \
