@@ -1,1 +1,1 @@
-boxsdk==2.8.0
+boxsdk[jwt]

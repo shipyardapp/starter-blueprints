@@ -5,7 +5,7 @@ import tempfile
 import argparse
 import glob
 
-from boxsdk import OAuth2, Client
+from boxsdk import Client, JWTAuth
 from boxsdk.exception import *
 
 import logging
@@ -29,11 +29,7 @@ def get_args():
             dest='destination_folder_name', default='', required=False)
     parser.add_argument('--destination-file-name', dest='destination_file_name',
             default=None, required=False)
-    parser.add_argument('--developer-token', dest='developer_token',
-            default=None, required=True)
-    parser.add_argument('--client-id', dest='client_id',
-            default=None, required=True)
-    parser.add_argument('--client-secret', dest='client_secret',
+    parser.add_argument('--service-account', dest='service_account',
             default=None, required=True)
     return parser.parse_args()
 
@@ -168,13 +164,17 @@ def upload_box_file(
             f'{destination_full_path}')
 
 
-def get_client(developer_token, client_id, client_secret):
+def get_client(service_account):
     """
     Attempts to create the Box Client with the associated with the credentials.
     """
     try:
-        auth = OAuth2(client_id=client_id, client_secret=client_secret,
-                        access_token=developer_token)
+        if os.path.isfile(service_account):
+            auth = JWTAuth.from_settings_file(service_account)
+        else:
+            service_dict = json.loads(service_account)
+            auth = JWTAuth.from_settings_dictionary(service_dict)
+
         client = Client(auth)
         client.user().get()
         return client
@@ -184,25 +184,63 @@ def get_client(developer_token, client_id, client_secret):
               f'client_secret={client_secret}')
         raise(e)
 
+
 def get_folder_id(client, destination_folder_name):
     """
-    Returns the folder id for the Box client if it exists.
+    Returns the folder obj for the Box client if it exists.
     """
+    folder = None
     try:
         folders = client.search().query(query=destination_folder_name,
                                             result_type='folder')
-        for folder in folders:
-            return folder.id
+        for _folder in folders:
+            folder = _folder
+        return folder
     except (BoxOAuthException, BoxAPIException) as e:
         print(f'The specified folder {destination_folder_name} does not exist')
+        create_folders(client, destination_folder_name)
+
+    if not folder:
+        return create_folders(client, destination_folder_name)
+
+def create_folder(client, folder_name, subfolder='0'):
+    """
+    Creates the folder for the Box client.
+    """
+    # Check if we're creating in the root folder
+    if subfolder != '0':
+        subfolder_id = subfolder.id
+
+    try:
+        subfolder = client.folder(subfolder_id).create_subfolder(folder_name)
+    except Exception as e:
+        print(f'Folder {folder} already exists')
+        folder_id = e.context_info['conflicts'][0]['id']
+        subfolder = client.folder(folder_id=folder_id).get()
+
+    return subfolder
+
+
+def create_folders(client, destination_folder_name):
+    """
+    Creates the folder destination_folder_name for the Box client.
+    """
+    try:
+        folders = destination_folder_name.split('/')
+        subfolder = create_folder(client, folders[0])
+
+        for folder in folders[1:]:
+            subfolder = create_folder(client, folder, subfolder)
+
+        return subfolder
+    except (BoxOAuthException, BoxAPIException) as e:
+        print(f'Could not create folder {destination_folder_name}')
         raise(e)
 
 
 def main():
     args = get_args()
-    developer_token = args.developer_token
-    client_id = args.client_id
-    client_secret = args.client_secret
+    service_account = args.service_account
     source_file_name = args.source_file_name
     source_folder_name = args.source_folder_name
     source_full_path = combine_folder_and_file_name(
@@ -212,9 +250,8 @@ def main():
     destination_folder_name = clean_folder_name(args.destination_folder_name)
     source_file_name_match_type = args.source_file_name_match_type
 
-    client = get_client(developer_token=developer_token, client_id=client_id,
-                        client_secret=client_secret)
-    folder_id = get_folder_id(client, destination_folder_name=destination_folder_name)
+    client = get_client(service_account=service_account)
+    folder = get_folder_id(client, destination_folder_name=destination_folder_name)
 
     if source_file_name_match_type == 'regex_match':
         file_names = find_all_local_file_names(source_folder_name)
@@ -232,7 +269,7 @@ def main():
             upload_box_file(
                 source_full_path=file_name,
                 destination_full_path=destination_full_path,
-                client=client, folder_id=folder_id)
+                client=client, folder_id=folder.id)
 
     else:
         destination_full_path = determine_destination_full_path(
@@ -240,16 +277,16 @@ def main():
                             destination_file_name=args.destination_file_name,
                             source_full_path=source_full_path)
         # if destination folder is specified, confirm the folder exists
-        parent_folder_id = None
+        parent_folder = None
         if destination_folder_name:
-            parent_folder_id = get_folder_id(client, destination_full_path)
-            if not parent_folder_id:
+            parent_folder = get_folder_id(client, destination_full_path)
+            if not parent_folder:
                 print(f'Folder {destination_folder_name} does not exist')
                 return
 
         upload_box_file(source_full_path=source_full_path,
                         destination_full_path=destination_full_path,
-                        client=client, folder_id=folder_id)
+                        client=client, folder_id=parent_folder.id)
 
 
 if __name__ == '__main__':
