@@ -1,9 +1,10 @@
 import os
 import sys
 import re
+import json
 import argparse
 
-from boxsdk import OAuth2, Client
+from boxsdk import Client, JWTAuth
 from boxsdk.exception import *
 
 import logging
@@ -22,11 +23,7 @@ def get_args():
                         dest='destination_file_name', default=None, required=False)
     parser.add_argument('--destination-folder-name',
                         dest='destination_folder_name', default='', required=False)
-    parser.add_argument('--developer-token', dest='developer_token',
-            default=None, required=True)
-    parser.add_argument('--client-id', dest='client_id',
-            default=None, required=True)
-    parser.add_argument('--client-secret', dest='client_secret',
+    parser.add_argument('--service-account', dest='service_account',
             default=None, required=True)
     return parser.parse_args()
 
@@ -151,13 +148,17 @@ def download_box_file(file_name, file_id, client, destination_file_name=None):
     return
 
 
-def get_client(developer_token, client_id, client_secret):
+def get_client(service_account):
     """
     Attempts to create the Box Client with the associated with the credentials.
     """
     try:
-        auth = OAuth2(client_id=client_id, client_secret=client_secret,
-                        access_token=developer_token)
+        if os.path.isfile(service_account):
+            auth = JWTAuth.from_settings_file(service_account)
+        else:
+            service_dict = json.loads(service_account)
+            auth = JWTAuth.from_settings_dictionary(service_dict)
+
         client = Client(auth)
         client.user().get()
         return client
@@ -187,9 +188,7 @@ def get_file_id(client, source_folder_name, source_file_name):
 
 def main():
     args = get_args()
-    developer_token = args.developer_token
-    client_id = args.client_id
-    client_secret = args.client_secret
+    service_account = args.service_account
     source_file_name = args.source_file_name
     source_folder_name = clean_folder_name(args.source_folder_name)
     source_full_path = combine_folder_and_file_name(
@@ -201,8 +200,7 @@ def main():
             (destination_folder_name != ''):
         os.makedirs(destination_folder_name)
 
-    client = get_client(developer_token=developer_token, client_id=client_id,
-                        client_secret=client_secret)
+    client = get_client(service_account=service_account)
 
     if source_file_name_match_type == 'regex_match':
         file_objs = find_box_file_names(client=client,
