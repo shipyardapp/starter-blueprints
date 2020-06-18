@@ -152,11 +152,15 @@ def upload_box_file(
     Uploads a single file to Box.
     """
     destination_file_name = destination_full_path.rsplit('/', 1)[-1]
-    with open(source_full_path, 'rb') as f:
-        try:
+    try:
+        with open(source_full_path, 'rb') as f:
             new_file = client.folder(folder_id).upload_stream(f,
                                                         destination_file_name)
-        except Exception as e:
+    except Exception as e:
+        if  hasattr(e, 'code') and e.code == 'item_name_in_use':
+            file_id = e.context_info['conflicts']['id']
+            updated_file = client.file(file_id).update_contents(source_full_path)
+        else:
             print(f'Failed to upload file {source_full_path}')
             raise(e)
 
@@ -208,13 +212,14 @@ def create_folder(client, folder_name, subfolder='0'):
     Creates the folder for the Box client.
     """
     # Check if we're creating in the root folder
+    subfolder_id = '0'
     if subfolder != '0':
         subfolder_id = subfolder.id
 
     try:
         subfolder = client.folder(subfolder_id).create_subfolder(folder_name)
     except Exception as e:
-        print(f'Folder {folder} already exists')
+        print(f'Folder {folder_name} already exists')
         folder_id = e.context_info['conflicts'][0]['id']
         subfolder = client.folder(folder_id=folder_id).get()
 
@@ -227,12 +232,13 @@ def create_folders(client, destination_folder_name):
     """
     try:
         folders = destination_folder_name.split('/')
-        subfolder = create_folder(client, folders[0])
+        if len(folder) > 1:
+            subfolder = create_folder(client, folders[0])
 
-        for folder in folders[1:]:
-            subfolder = create_folder(client, folder, subfolder)
+            for folder in folders[1:]:
+                subfolder = create_folder(client, folder, subfolder)
 
-        return subfolder
+            return subfolder
     except (BoxOAuthException, BoxAPIException) as e:
         print(f'Could not create folder {destination_folder_name}')
         raise(e)
@@ -251,7 +257,10 @@ def main():
     source_file_name_match_type = args.source_file_name_match_type
 
     client = get_client(service_account=service_account)
-    folder = get_folder_id(client, destination_folder_name=destination_folder_name)
+    folder = '0'
+    if destination_folder_name:
+        folder = get_folder_id(client,
+                        destination_folder_name=destination_folder_name)
 
     if source_file_name_match_type == 'regex_match':
         file_names = find_all_local_file_names(source_folder_name)
@@ -277,16 +286,17 @@ def main():
                             destination_file_name=args.destination_file_name,
                             source_full_path=source_full_path)
         # if destination folder is specified, confirm the folder exists
-        parent_folder = None
+        parent_folder_id = '0'
         if destination_folder_name:
             parent_folder = get_folder_id(client, destination_full_path)
             if not parent_folder:
                 print(f'Folder {destination_folder_name} does not exist')
                 return
+            parent_folder_id = parent_folder.id
 
         upload_box_file(source_full_path=source_full_path,
                         destination_full_path=destination_full_path,
-                        client=client, folder_id=parent_folder.id)
+                        client=client, folder_id=parent_folder_id)
 
 
 if __name__ == '__main__':
