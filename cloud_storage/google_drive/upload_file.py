@@ -30,6 +30,7 @@ def get_args():
             default=None, required=False)
     parser.add_argument('--service-account', dest='gcp_application_credentials',
             default=None, required=True)
+    parser.add_argument('--drive', dest='drive', default=None, required=False)
     return parser.parse_args()
 
 
@@ -163,7 +164,7 @@ def find_all_file_matches(file_names, file_name_re):
     return matching_file_names
 
 
-def create_remote_folder(service, folder, parent_id=None):
+def create_remote_folder(service, folder, parent_id=None, drive_id=None):
     """
     Create a folder on Drive, returns the newely created folders ID
     """
@@ -173,8 +174,11 @@ def create_remote_folder(service, folder, parent_id=None):
     }
     if parent_id:
         body['parents'] = [parent_id]
+    if drive_id and not parent_id:
+        body['parents'] = [drive_id]
     try:
-        folder = service.files().create(body = body).execute()
+        folder = service.files().create(body=body, supportsAllDrives=True,
+                                       fields=('id')).execute()
         print(f'Creating folder: {folder}')
     except Exception as e:
         print(f'Failed to create folder: {folder}')
@@ -182,7 +186,7 @@ def create_remote_folder(service, folder, parent_id=None):
     return folder['id']
 
 
-def find_folder_id(service, destination_folder_name):
+def find_folder_id(service, destination_folder_name, drive):
     """
     Returns the id of the destination folder name in Google Drive
     """
@@ -196,15 +200,23 @@ def find_folder_id(service, destination_folder_name):
             query = 'mimeType = \'application/vnd.google-apps.folder\'' \
                 f' and name=\'{folder}\''
 
-        results = service.files().list(q=str(query),
-                fields="files(id, name)").execute()
+        if drive:
+            drive_id = get_shared_drive_id(service, drive)
+            results = service.files().list(q=str(query), supportsAllDrives=True,
+                            includeItemsFromAllDrives=True, corpora="drive",
+                            driveId=drive_id,
+                            fields="files(id, name)").execute()
+        else:
+            drive_id = None
+            results = service.files().list(q=str(query),
+                    fields="files(id, name)").execute()
+
         _folder = results.get('files', [])
         if _folder != []:
             parent_id = _folder[0].get('id')
         else:
-            parent_id = create_remote_folder(service,
-                                             folder,
-                                             parent_id)
+            parent_id = create_remote_folder(service, folder, parent_id,
+                                            drive_id)
 
     return parent_id
 
@@ -220,13 +232,19 @@ def upload_google_drive_file(
     file_metadata = {'name': destination_full_path}
     file_name = destination_full_path.rsplit('/', 1)[-1]
     if file_name:
-        file_metadata = {'name': file_name}
+        file_metadata = {'name': file_name,
+                         'parents': []}
 
     if parent_folder_id:
-        file_metadata['parents'] = [parent_folder_id]
+        file_metadata['parents'].append(parent_folder_id)
 
     try:
         media = MediaFileUpload(source_full_path, resumable=True)
+    except Exception as e:
+        print(f'The file {source_full_path} does not exist')
+        raise(e)
+
+    try:
         _file = service.files().create(body=file_metadata, media_body=media,
                                        supportsAllDrives=True,
                                        fields=('id')).execute()
@@ -236,6 +254,18 @@ def upload_google_drive_file(
 
     print(f'{source_full_path} successfully uploaded to ' \
             f'{destination_full_path}')
+
+
+def get_shared_drive_id(service, drive):
+    """
+    Search for the drive under shared Google Drives.
+    """
+    drives = service.drives().list().execute()
+    drive_id = None
+    for _drive in drives['drives']:
+        if _drive['name'] == drive:
+            drive_id = _drive['id']
+    return drive_id
 
 
 def get_service(credentials):
@@ -257,6 +287,7 @@ def get_service(credentials):
 def main():
     args = get_args()
     tmp_file = set_environment_variables(args)
+    drive = args.drive
     source_file_name = args.source_file_name
     source_folder_name = args.source_folder_name
     source_full_path = combine_folder_and_file_name(
@@ -285,7 +316,8 @@ def main():
             # if destination folder is specified, confirm the folder exists
             parent_folder_id = None
             if destination_folder_name:
-                parent_folder_id = find_folder_id(service, destination_full_path)
+                parent_folder_id = find_folder_id(service, destination_full_path,
+                                                    drive)
                 if not parent_folder_id:
                     print(f'Folder {destination_folder_name} does not exist')
                     return
@@ -304,7 +336,8 @@ def main():
         # if destination folder is specified, confirm the folder exists
         parent_folder_id = None
         if destination_folder_name:
-            parent_folder_id = find_folder_id(service, destination_full_path)
+            parent_folder_id = find_folder_id(service, destination_full_path,
+                                                drive)
             if not parent_folder_id:
                 print(f'Folder {destination_folder_name} does not exist')
                 return
