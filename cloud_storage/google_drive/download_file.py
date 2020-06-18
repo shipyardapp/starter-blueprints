@@ -163,18 +163,58 @@ def find_folder_id(service, destination_folder_name, _all=False, drive_id=False)
     return parent_id
 
 
+def get_all_folder_ids(service, parent_id=None, drive_id=False):
+    """
+    Returns the id of the destination folder name in Google Drive
+    """
+    parent_ids = []
+    # build query string
+    if parent_id:
+        query = 'mimeType = \'application/vnd.google-apps.folder\'' \
+            f' and \'{parent_id}\' in parents'
+    else:
+        query = 'mimeType = \'application/vnd.google-apps.folder\''
+
+    if drive_id:
+        results = service.files().list(q=str(query), supportsAllDrives=True,
+                        includeItemsFromAllDrives=True, corpora="drive",
+                        driveId=drive_id,
+                        fields="files(id, name)").execute()
+    else:
+        results = service.files().list(q=str(query),
+                fields="files(id, name)").execute()
+
+    folders = results.get('files', [])
+    return set(folder['id'] for folder in folders)
+
+
+
 def find_google_drive_file_names(service, prefix='', drive=None):
     """
     Fetched all the files in the Drive which are returned in a list as 
     Google Blob objects
     """
-    parent_folder_ids = find_folder_id(service, prefix, drive)
+    if prefix:
+        parent_folder_id = find_folder_id(service, prefix, drive)
+        parent_folder_ids = get_all_folder_ids(service,
+                                parent_id=parent_folder_id, drive_id=drive)
+        parent_folder_ids.add(parent_folder_id)
+    else:
+        parent_folder_ids = get_all_folder_ids(service, drive_id=drive)
     files = []
+    if drive:
+        drive_id = get_shared_drive_id(service, drive)
     for parent_folder_id in parent_folder_ids:
         query = f'\'{parent_folder_id}\' in parents'
-        _files = service.files().list(q=str(query), fields="files(id, name)",
-                        corpora="allDrives").execute()
-        files.extend(_files.get('files', []))
+        if drive:
+            _files = service.files().list(q=str(query), supportsAllDrives=True,
+                    includeItemsFromAllDrives=True, corpora="drive",
+                    driveId=drive_id,
+                    fields="files(id, name)").execute()
+        else:
+            _files = service.files().list(q=str(query),
+                                    fields="files(id, name)").execute()
+            files.extend(_files.get('files', []))
     return files
 
 
@@ -197,7 +237,10 @@ def download_google_drive_file(service, blob, destination_file_name=None):
     """
     local_path = os.path.normpath(f'{os.getcwd()}/{destination_file_name}')
     name = blob['name']
-    fh = io.FileIO(local_path, 'wb')
+    path = local_path.rsplit('/', 1)[0]
+    if not os.path.exists(path):
+        os.mkdir(path)
+    fh = io.FileIO(local_path, 'wb+')
     try:
         request = service.files().get_media(fileId=blob['id'])
         downloader = MediaIoBaseDownload(fh, request)
