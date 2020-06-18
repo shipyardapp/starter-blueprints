@@ -26,6 +26,7 @@ def get_args():
                         dest='destination_folder_name', default='', required=False)
     parser.add_argument('--service-account', dest='gcp_application_credentials',
                         default=None, required=True)
+    parser.add_argument('--drive', dest='drive', default=None, required=False)
     return parser.parse_args()
 
 
@@ -122,7 +123,7 @@ def determine_destination_name(destination_folder_name, destination_file_name, s
     return destination_name
 
 
-def find_folder_id(service, destination_folder_name, _all=False):
+def find_folder_id(service, destination_folder_name, _all=False, drive_id=False):
     """
     Returns the id of the destination folder name in Google Drive
     """
@@ -141,29 +142,38 @@ def find_folder_id(service, destination_folder_name, _all=False):
             if folder != '':
                 query += f' and name=\'{folder}\''
 
-        results = service.files().list(q=str(query),
-                fields="files(id, name)").execute()
+        if drive_id:
+            results = service.files().list(q=str(query), supportsAllDrives=True,
+                            includeItemsFromAllDrives=True, corpora="drive",
+                            driveId=drive_id,
+                            fields="files(id, name)").execute()
+        else:
+            results = service.files().list(q=str(query),
+                    fields="files(id, name)").execute()
+
         _folder = results.get('files', [])
         if _folder != []:
             parent_id = _folder[0].get('id')
             parent_ids.append(parent_id)
+        else:
+            parent_id = None
 
     if _all:
         return parent_ids
     return parent_id
 
 
-def find_google_drive_file_names(service, prefix=''):
+def find_google_drive_file_names(service, prefix='', drive=None):
     """
     Fetched all the files in the Drive which are returned in a list as 
     Google Blob objects
     """
-    parent_folder_ids = find_folder_id(service, prefix, True)
+    parent_folder_ids = find_folder_id(service, prefix, drive)
     files = []
     for parent_folder_id in parent_folder_ids:
         query = f'\'{parent_folder_id}\' in parents'
-        _files = service.files().list(q=str(query),
-                fields="files(id, name)").execute()
+        _files = service.files().list(q=str(query), fields="files(id, name)",
+                        corpora="allDrives").execute()
         files.extend(_files.get('files', []))
     return files
 
@@ -189,7 +199,7 @@ def download_google_drive_file(service, blob, destination_file_name=None):
     name = blob['name']
     fh = io.FileIO(local_path, 'wb')
     try:
-        request = service.files().get(fileId=blob['id'])
+        request = service.files().get_media(fileId=blob['id'])
         downloader = MediaIoBaseDownload(fh, request)
         done = False
         while done is False:
@@ -203,17 +213,43 @@ def download_google_drive_file(service, blob, destination_file_name=None):
     return
 
 
-def get_file_blob(service, source_folder_name, source_file_name):
+def get_shared_drive_id(service, drive):
+    """
+    Search for the drive under shared Google Drives.
+    """
+    drives = service.drives().list().execute()
+    drive_id = None
+    for _drive in drives['drives']:
+        if _drive['name'] == drive:
+            drive_id = _drive['id']
+    return drive_id
+
+
+def get_file_blob(service, source_folder_name, source_file_name, drive):
     """
     Return a single file blob that matched the source file name.
     """
     query = f'name contains \'{source_file_name}\' '
-    if source_folder_name != '':
-        parent_folder_id = find_folder_id(service, source_folder_name)
-        query += f'and \'{parent_folder_id}\' in parents'
-    files = service.files().list(q=str(query),
-            fields="files(id, name)").execute()
-    return files.get('files', [])[0]
+
+    if drive:
+        drive_id = get_shared_drive_id(service, drive)
+        if source_folder_name != '':
+            parent_folder_id = find_folder_id(service, source_folder_name,
+                                                drive_id=drive_id)
+            query += f'and \'{parent_folder_id}\' in parents'
+        files = service.files().list(q=str(query), supportsAllDrives=True,
+                includeItemsFromAllDrives=True, corpora="drive",
+                driveId=drive_id,
+                fields="files(id, name)").execute()
+    else:
+        if source_folder_name != '':
+            parent_folder_id = find_folder_id(service, source_folder_name)
+            query += f'and \'{parent_folder_id}\' in parents'
+        files = service.files().list(q=str(query),
+                fields="files(id, name)").execute()
+    files = files.get('files', [])
+    return files[0] if files != [] else None
+
 
 
 def get_service(credentials):
@@ -235,6 +271,7 @@ def get_service(credentials):
 def main():
     args = get_args()
     tmp_file = set_environment_variables(args)
+    drive = args.drive
     source_file_name = args.source_file_name
     source_folder_name = clean_folder_name(args.source_folder_name)
     source_full_path = combine_folder_and_file_name(
@@ -252,7 +289,7 @@ def main():
         service = get_service(credentials=args.gcp_application_credentials)
 
     if source_file_name_match_type == 'regex_match':
-        files = find_google_drive_file_names(service=service,
+        files = find_google_drive_file_names(service=service, drive=drive,
                                             prefix=source_folder_name)
         matching_file_names = find_matching_files(files,
                                             re.compile(source_file_name))
@@ -268,9 +305,13 @@ def main():
             download_google_drive_file(service=service, blob=blob,
                     destination_file_name=destination_name)
     else:
-        blob = get_file_blob(service=service,
+        blob = get_file_blob(service=service, drive=drive,
                             source_folder_name=source_folder_name,
                                 source_file_name=source_file_name)
+        if not blob:
+            print(f'Could not find file {source_file_name} in folder ' \
+                    f'{source_folder_name}')
+            return
         destination_name = determine_destination_name(
                 destination_folder_name=destination_folder_name,
                 destination_file_name=args.destination_file_name,
