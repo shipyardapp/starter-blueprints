@@ -194,16 +194,20 @@ def find_google_drive_file_names(service, prefix='', drive=None):
     Fetched all the files in the Drive which are returned in a list as 
     Google Blob objects
     """
-    if prefix:
-        parent_folder_id = find_folder_id(service, prefix, drive)
-        parent_folder_ids = get_all_folder_ids(service,
-                                parent_id=parent_folder_id, drive_id=drive)
-        parent_folder_ids.add(parent_folder_id)
-    else:
-        parent_folder_ids = get_all_folder_ids(service, drive_id=drive)
-    files = []
     if drive:
         drive_id = get_shared_drive_id(service, drive)
+
+    if prefix:
+        parent_folder_id = find_folder_id(service, prefix, drive_id)
+        parent_folder_ids = get_all_folder_ids(service,
+                                parent_id=parent_folder_id, drive_id=drive_id)
+        parent_folder_ids.add(parent_folder_id)
+        parent_folder_ids.add(drive_id)
+    else:
+        parent_folder_ids = get_all_folder_ids(service, drive_id=drive_id)
+        parent_folder_ids.add(drive_id)
+
+    files = []
     for parent_folder_id in parent_folder_ids:
         query = f'\'{parent_folder_id}\' in parents'
         if drive:
@@ -214,7 +218,7 @@ def find_google_drive_file_names(service, prefix='', drive=None):
         else:
             _files = service.files().list(q=str(query),
                                     fields="files(id, name)").execute()
-            files.extend(_files.get('files', []))
+        files.extend(_files.get('files', []))
     return files
 
 
