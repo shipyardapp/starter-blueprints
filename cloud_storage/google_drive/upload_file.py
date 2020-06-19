@@ -225,7 +225,8 @@ def upload_google_drive_file(
         service,
         source_full_path,
         destination_full_path,
-        parent_folder_id):
+        parent_folder_id,
+        drive):
     """
     Uploads a single file to Google Drive.
     """
@@ -238,9 +239,18 @@ def upload_google_drive_file(
     if parent_folder_id:
         file_metadata['parents'].append(parent_folder_id)
 
+    if drive:
+        drive_id = get_shared_drive_id(service, drive)
+
     # Check if file exists
     update = False
-    exists = service.files().list(q=f'name=\'{file_name}\'').execute()
+    if drive_id:
+        exists = service.files().list(q=f'name=\'{file_name}\'',
+                            includeItemsFromAllDrives=True, corpora="drive",
+                            driveId=drive_id, supportsAllDrives=True).execute()
+    else:
+        exists = service.files().list(q=f'name=\'{file_name}\'').execute()
+
     if exists.get('files', []) != []:
         file_id = exists['files'][0]['id']
         update = True
@@ -255,12 +265,12 @@ def upload_google_drive_file(
     try:
         if update:
             _file = service.files().update(fileId=file_id, body=file_metadata,
-                                    media_body=media, supportsAllDrives=True,
-                                    fields=('id'), addParents=parent_folder_id).execute()
+                                media_body=media, supportsAllDrives=True,
+                                fields=('id'), addParents=parent_folder_id).execute()
         else:
             _file = service.files().create(body=file_metadata,
-                                    media_body=media, supportsAllDrives=True,
-                                    fields=('id')).execute()
+                                media_body=media, supportsAllDrives=True,
+                                fields=('id')).execute()
     except Exception as e:
         print(f'Failed to upload file: {file_name}')
         raise (e)
@@ -336,10 +346,9 @@ def main():
                     return
 
             print(f'Uploading file {index+1} of {len(matching_file_names)}')
-            upload_google_drive_file(
-                source_full_path=key_name,
-                destination_full_path=destination_full_path,
-                service=service, parent_folder_id=parent_folder_id)
+            upload_google_drive_file(source_full_path=key_name, drive=drive,
+                            destination_full_path=destination_full_path,
+                            service=service, parent_folder_id=parent_folder_id)
 
     else:
         destination_full_path = determine_destination_full_path(
@@ -355,10 +364,9 @@ def main():
                 print(f'Folder {destination_folder_name} does not exist')
                 return
 
-        upload_google_drive_file(
-            source_full_path=source_full_path,
-            destination_full_path=destination_full_path,
-            service=service, parent_folder_id=parent_folder_id)
+        upload_google_drive_file(source_full_path=source_full_path, drive=drive,
+                    destination_full_path=destination_full_path,
+                    service=service, parent_folder_id=parent_folder_id)
     if tmp_file:
         print(f'Removing temporary credentials file {tmp_file}')
         os.remove(tmp_file)
