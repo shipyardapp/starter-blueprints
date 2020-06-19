@@ -2,16 +2,13 @@ import argparse
 import os
 from zipfile import ZipFile
 import tarfile
-import bz2
 import glob
 import re
-import patool
-from rarfile import RarFile
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--compression', dest='compression',
-                        choices={'zip','gzip','7z','rar','tar','bz2'}, required=True)
+                        choices={'zip','tar','tar.bz2','tar.gz'}, required=True)
     parser.add_argument('--source-file-name-match-type', dest='source_file_name_match_type',
                         choices={'exact_match', 'regex_match'}, required=True)
     parser.add_argument('--source-folder-name',
@@ -66,37 +63,30 @@ def find_all_file_matches(file_names, file_name_re):
 
 def compress_files(file_paths,destination_full_path,compression):
     
-    compressed_file_name = 
+    compressed_file_name = f'{destination_full_path}.{compression}'
     if compression == 'zip':
-        with ZipFile(f'{destination_full_path}.zip','w') as zip:
+        with ZipFile(compressed_file_name,'w') as zip:
             for file in file_paths:
                 file = file.replace(os.getcwd(),'')[1:]
                 zip.write(file)
     
-    if compression =='bz2':
-        with tarfile.open(f'{destination_full_path}.tar.bz2','w:bz2') as tar:
+    if compression =='tar.bz2':
+        with tarfile.open(compressed_file_name,'w:bz2') as tar:
             for file in file_paths:
                 file = file.replace(os.getcwd(),'')[1:]
                 tar.add(file)
 
     if compression =='tar':
-        with tarfile.open(f'{destination_full_path}.tar','w') as tar:
+        with tarfile.open(compressed_file_name,'w') as tar:
             for file in file_paths:
                 file = file.replace(os.getcwd(),'')[1:]
                 tar.add(file)
 
-    if compression =='gzip':
-        with tarfile.open(f'{destination_full_path}.tar.gz','w:gz') as tar:
+    if compression =='tar.gz':
+        with tarfile.open(compressed_file_name,'w:gz') as tar:
             for file in file_paths:
                 file = file.replace(os.getcwd(),'')[1:]
                 tar.add(file)
-
-    if compression == 'rar':
-        with RarFile(f'{destination_full_path}.{compression}','w') as rar:
-            for file in file_paths:
-                file = file.replace(os.getcwd(),'')[1:]
-                rar.write(file)
-
 
 def main():
     args = get_args()
