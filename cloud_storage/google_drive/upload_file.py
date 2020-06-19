@@ -238,18 +238,23 @@ def upload_google_drive_file(
 
     if parent_folder_id:
         file_metadata['parents'].append(parent_folder_id)
+    else:
+        parent_folder_id = 'root'
 
+    drive_id = None
     if drive:
         drive_id = get_shared_drive_id(service, drive)
 
     # Check if file exists
     update = False
     if drive_id:
-        exists = service.files().list(q=f'name=\'{file_name}\'',
+        query = f'name=\'{file_name}\' and \'{parent_folder_id}\' in parents'
+        exists = service.files().list(q=query,
                             includeItemsFromAllDrives=True, corpora="drive",
                             driveId=drive_id, supportsAllDrives=True).execute()
     else:
-        exists = service.files().list(q=f'name=\'{file_name}\'').execute()
+        query = f'name=\'{file_name}\' and \'{parent_folder_id}\' in parents'
+        exists = service.files().list(q=query).execute()
 
     if exists.get('files', []) != []:
         file_id = exists['files'][0]['id']
