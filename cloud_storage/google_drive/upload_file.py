@@ -236,14 +236,17 @@ def upload_google_drive_file(
         file_metadata = {'name': file_name,
                          'parents': []}
 
-    if parent_folder_id:
-        file_metadata['parents'].append(parent_folder_id)
-    else:
-        parent_folder_id = 'root'
-
     drive_id = None
     if drive:
         drive_id = get_shared_drive_id(service, drive)
+
+    if parent_folder_id:
+        file_metadata['parents'].append(parent_folder_id)
+    elif drive_id:
+        parent_folder_id = drive_id
+        file_metadata['parents'].append(drive_id)
+    else:
+        parent_folder_id = 'root'
 
     # Check if file exists
     update = False
@@ -259,7 +262,7 @@ def upload_google_drive_file(
     if exists.get('files', []) != []:
         file_id = exists['files'][0]['id']
         update = True
-        file_metadata.pop('parents')
+        parent_folder_id = file_metadata.pop('parents')[0]
 
     try:
         media = MediaFileUpload(source_full_path, resumable=True)
@@ -277,6 +280,8 @@ def upload_google_drive_file(
                                 media_body=media, supportsAllDrives=True,
                                 fields=('id')).execute()
     except Exception as e:
+        if e.content == b'Failed to parse Content-Range header.':
+            print(f'Failed to upload file {source_full_path} due to invalid size')
         print(f'Failed to upload file: {file_name}')
         raise (e)
 
