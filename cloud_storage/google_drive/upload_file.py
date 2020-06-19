@@ -262,7 +262,9 @@ def upload_google_drive_file(
     if exists.get('files', []) != []:
         file_id = exists['files'][0]['id']
         update = True
-        parent_folder_id = file_metadata.pop('parents')[0]
+        parents = file_metadata.pop('parents')
+        if parents != []:
+            parent_folder_id = parents[0]
 
     try:
         media = MediaFileUpload(source_full_path, resumable=True)
