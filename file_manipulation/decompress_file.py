@@ -38,28 +38,10 @@ def combine_folder_and_file_name(folder_name, file_name):
 
     return combined_name
 
-def find_all_local_file_names(source_folder_name):
-    """
-    Returns a list of all files that exist in the current working directory,
-    filtered by source_folder_name if provided.
-    """
-    cwd = os.getcwd()
-    cwd_extension = os.path.normpath(f'{cwd}/{source_folder_name}/**')
-    file_names = glob.glob(cwd_extension, recursive=True)
-    return [file_name for file_name in file_names if os.path.isfile(file_name)]
-
-def find_all_file_matches(file_names, file_name_re):
-    """
-    Return a list of all file_names that matched the regular expression.
-    """
-    matching_file_names = []
-    for file in file_names:
-        if re.search(file_name_re, file):
-            matching_file_names.append(file)
-
-    return matching_file_names
-
 def decompress_file(source_full_path,destination_full_path,compression):
+    """
+    Decompress a given file, using the specified compression method.
+    """
     
     compressed_file_name = f'{destination_full_path}.{compression}'
     if compression == 'zip':
@@ -67,18 +49,21 @@ def decompress_file(source_full_path,destination_full_path,compression):
             zip.extractall(destination_full_path)
                 
     if compression =='tar.bz2':
-        tf = tarfile.open(source_full_path,'r:bz2')
-        tf.extractall(path=destination_full_path)
+        file = tarfile.open(source_full_path,'r:bz2')
+        file.extractall(path=destination_full_path)
 
     if compression =='tar':
-        tf = tarfile.open(source_full_path,'r')
-        tf.extractall(path=destination_full_path)
+        file = tarfile.open(source_full_path,'r')
+        file.extractall(path=destination_full_path)
 
     if compression =='tar.gz':
-        tf = tarfile.open(source_full_path,'r:gz')
-        tf.extractall(path=destination_full_path)
+        file = tarfile.open(source_full_path,'r:gz')
+        file.extractall(path=destination_full_path)
 
 def create_fallback_destination_file_name(source_file_name,compression):
+    """
+    If a destination_file_name is not provided, uses the source_file_name with a removal of the compression extension.
+    """
     file_name = os.path.basename(source_file_name)
     file_name = file_name.replace(f'.{compression}','')
     return file_name

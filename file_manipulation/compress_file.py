@@ -62,7 +62,9 @@ def find_all_file_matches(file_names, file_name_re):
     return matching_file_names
 
 def compress_files(file_paths,destination_full_path,compression):
-    
+    """
+    Compress all of the matched files using the specified compression method.
+    """
     compressed_file_name = f'{destination_full_path}.{compression}'
     if compression == 'zip':
         with ZipFile(compressed_file_name,'w') as zip:
