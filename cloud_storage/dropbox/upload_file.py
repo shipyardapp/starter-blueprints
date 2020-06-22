@@ -128,7 +128,8 @@ def find_all_local_file_names(source_folder_name):
     cwd = os.getcwd()
     cwd_extension = os.path.normpath(f'{cwd}/{source_folder_name}/**')
     file_names = glob.glob(cwd_extension, recursive=True)
-    return file_names
+    return [file_name for file_name in file_names if os.path.isfile(file_name)]
+
 
 
 def find_all_file_matches(file_names, file_name_re):
