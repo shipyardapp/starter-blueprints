@@ -128,7 +128,7 @@ def find_all_local_file_names(source_folder_name):
     cwd = os.getcwd()
     cwd_extension = os.path.normpath(f'{cwd}/{source_folder_name}/**')
     file_names = glob.glob(cwd_extension, recursive=True)
-    return file_names
+    return [file_name for file_name in file_names if os.path.isfile(file_name)]
 
 
 def find_all_file_matches(file_names, file_name_re):
@@ -261,6 +261,7 @@ def main():
     if destination_folder_name:
         folder = get_folder_id(client,
                         destination_folder_name=destination_folder_name)
+        folder = folder.id
 
     if source_file_name_match_type == 'regex_match':
         file_names = find_all_local_file_names(source_folder_name)
@@ -278,7 +279,7 @@ def main():
             upload_box_file(
                 source_full_path=file_name,
                 destination_full_path=destination_full_path,
-                client=client, folder_id=folder.id)
+                client=client, folder_id=folder)
 
     else:
         destination_full_path = determine_destination_full_path(
