@@ -175,14 +175,18 @@ def get_all_folder_ids(service, parent_id=None, drive_id=False):
     else:
         query = 'mimeType = \'application/vnd.google-apps.folder\''
 
-    if drive_id:
-        results = service.files().list(q=str(query), supportsAllDrives=True,
+    try:
+        if drive_id:
+             results = service.files().list(q=str(query), supportsAllDrives=True,
                         includeItemsFromAllDrives=True, corpora="drive",
                         driveId=drive_id,
                         fields="files(id, name)").execute()
-    else:
-        results = service.files().list(q=str(query),
-                fields="files(id, name)").execute()
+        else:
+            results = service.files().list(q=str(query),
+                    fields="files(id, name)").execute()
+    except Exception as e:
+        print(f'Failed to fetch folder ids for folder {parent_id}')
+        raise(e)
 
     folders = results.get('files', [])
     return set(folder['id'] for folder in folders)
@@ -194,11 +198,12 @@ def find_google_drive_file_names(service, prefix='', drive=None):
     Fetched all the files in the Drive which are returned in a list as 
     Google Blob objects
     """
+    drive_id = None
     if drive:
         drive_id = get_shared_drive_id(service, drive)
 
     if prefix:
-        parent_folder_id = find_folder_id(service, prefix, drive_id)
+        parent_folder_id = find_folder_id(service, prefix, drive_id=drive_id)
         parent_folder_ids = get_all_folder_ids(service,
                                 parent_id=parent_folder_id, drive_id=drive_id)
         parent_folder_ids.add(parent_folder_id)
@@ -208,6 +213,7 @@ def find_google_drive_file_names(service, prefix='', drive=None):
         parent_folder_ids.add(drive_id)
 
     files = []
+    parent_folder_ids = list(filter(None, parent_folder_ids))
     for parent_folder_id in parent_folder_ids:
         query = f'\'{parent_folder_id}\' in parents'
         if drive:
@@ -349,8 +355,11 @@ def main():
                     source_full_path=blob['name'], file_number=index+1)
 
             print(f'Downloading file {index+1} of {len(matching_file_names)}')
-            download_google_drive_file(service=service, blob=blob,
+            try:
+                download_google_drive_file(service=service, blob=blob,
                     destination_file_name=destination_name)
+            except Exception as e:
+                print(f'Failed to download {blob["name"]}... Skipping')
     else:
         blob = get_file_blob(service=service, drive=drive,
                             source_folder_name=source_folder_name,
