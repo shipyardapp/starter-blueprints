@@ -129,9 +129,14 @@ def download_dropbox_file(file_name, client, destination_file_name=None):
     """
     local_path = os.path.normpath(f'{os.getcwd()}/{destination_file_name}')
 
-    with open(local_path, 'wb') as f:
-        metadata, _file = client.files_download(path=file_name)
-        f.write(_file.content)
+    try:
+        with open(local_path, 'wb') as f:
+            metadata, _file = client.files_download(path=file_name)
+            f.write(_file.content)
+    except Exception as e:
+        print(f'Failed to download {file_name} to {local_path}')
+        os.remove(local_path)
+        raise(e)
 
     print(f'{file_name} successfully downloaded to {local_path}')
 
