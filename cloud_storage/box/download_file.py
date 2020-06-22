@@ -106,10 +106,17 @@ def find_box_file_names(client, source_folder_name, source_file_name):
     tuples of file_name to file_id
     """
     try:
+        if not source_folder_name:
+            source_folder_name = '0'
+
         folders = client.search().query(query=source_folder_name,
                                             result_type='folder')
+        search_folder = None
         for folder in folders:
             search_folder = folder
+        if not search_folder:
+            search_folder = client.folder('0')
+
         files = search_folder.get_items()
         file_names = []
         for _file in files:
@@ -173,10 +180,15 @@ def get_file_id(client, source_folder_name, source_file_name):
     Returns the folder id for the Box client if it exists.
     """
     try:
-        folders = client.search().query(query=source_folder_name,
-                                            result_type='folder')
-        for folder in folders:
-            search_folder = folder
+        search_folder = None
+        if not source_folder_name:
+            search_folder = client.folder('0')
+        else:
+            folders = client.search().query(query=source_folder_name,
+                                                result_type='folder')
+            for folder in folders:
+                search_folder = folder
+
         files = client.search().query(query=source_file_name,
                                         ancestor_folders=[search_folder])
         for _file in files:
