@@ -153,9 +153,8 @@ def upload_box_file(
     """
     destination_file_name = destination_full_path.rsplit('/', 1)[-1]
     try:
-        with open(source_full_path, 'rb') as f:
-            new_file = client.folder(folder_id).upload_stream(f,
-                                                        destination_file_name)
+        new_file = client.folder(folder_id).upload(source_full_path,
+                                               file_name=destination_file_name)
     except Exception as e:
         if  hasattr(e, 'code') and e.code == 'item_name_in_use':
             file_id = e.context_info['conflicts']['id']
@@ -194,11 +193,15 @@ def get_folder_id(client, destination_folder_name):
     Returns the folder obj for the Box client if it exists.
     """
     folder = None
+    search_folder = destination_folder_name.strip('/').rsplit('/', 1)[-1]
     try:
-        folders = client.search().query(query=destination_folder_name,
+        folders = client.search().query(query=search_folder,
                                             result_type='folder')
         for _folder in folders:
             folder = _folder
+
+        if not folder:
+            folder = create_folders(client, destination_folder_name)
         return folder
     except (BoxOAuthException, BoxAPIException) as e:
         print(f'The specified folder {destination_folder_name} does not exist')
@@ -232,7 +235,7 @@ def create_folders(client, destination_folder_name):
     """
     try:
         folders = destination_folder_name.split('/')
-        if len(folder) > 1:
+        if len(folders) > 1:
             subfolder = create_folder(client, folders[0])
 
             for folder in folders[1:]:
@@ -286,18 +289,10 @@ def main():
                             destination_folder_name=destination_folder_name,
                             destination_file_name=args.destination_file_name,
                             source_full_path=source_full_path)
-        # if destination folder is specified, confirm the folder exists
-        parent_folder_id = '0'
-        if destination_folder_name:
-            parent_folder = get_folder_id(client, destination_full_path)
-            if not parent_folder:
-                print(f'Folder {destination_folder_name} does not exist')
-                return
-            parent_folder_id = parent_folder.id
 
         upload_box_file(source_full_path=source_full_path,
                         destination_full_path=destination_full_path,
-                        client=client, folder_id=parent_folder_id)
+                        client=client, folder_id=folder)
 
 
 if __name__ == '__main__':
