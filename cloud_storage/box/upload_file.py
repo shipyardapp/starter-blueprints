@@ -235,7 +235,7 @@ def create_folders(client, destination_folder_name):
     """
     try:
         folders = destination_folder_name.split('/')
-        if len(folders) > 1:
+        if len(folders) > 0:
             subfolder = create_folder(client, folders[0])
 
             for folder in folders[1:]:
@@ -262,9 +262,10 @@ def main():
     client = get_client(service_account=service_account)
     folder = '0'
     if destination_folder_name:
-        folder = get_folder_id(client,
+        _folder = get_folder_id(client,
                         destination_folder_name=destination_folder_name)
-        folder = folder.id
+        if _folder:
+            folder = _folder.id
 
     if source_file_name_match_type == 'regex_match':
         file_names = find_all_local_file_names(source_folder_name)
