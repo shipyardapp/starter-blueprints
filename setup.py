@@ -16,7 +16,6 @@ config = {
     "url": "https://github.com/shipyardapp/starter-blueprints",
     "author_email": "tech@shipyardapp.com",
     "packages": find_packages(),
-    "install_requires": install_requires,
     "name": "shipyard_starter_blueprints",
     "license": "Apache-2.0",
     "classifiers": [
