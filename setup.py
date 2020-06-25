@@ -1,13 +1,4 @@
-from pathlib import Path
-from pip.req import parse_requirements
 from setuptools import find_packages, setup
-
-
-install_requires = []
-for path in Path('./').rglob('requirements.txt'):
-    _reqs = parse_requirements(str(path.absolute()), session='hack')
-    reqs = [str(r.req) for r in _reqs]
-    install_requires.extend(reqs)
 
 
 config = {
