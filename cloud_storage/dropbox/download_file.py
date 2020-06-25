@@ -4,6 +4,7 @@ import re
 import argparse
 
 from dropbox import Dropbox
+from dropbox.files import FileMetadata, FolderMetadata
 from dropbox.exceptions import *
 
 
@@ -107,7 +108,7 @@ def find_dropbox_file_names(client, prefix=None):
     if prefix and not prefix.startswith('/'):
         prefix = f'/{prefix}'
     files = client.files_list_folder(prefix)
-    return [f.name for f in files.entries]
+    return [f.name for f in files.entries if isinstance(f, FileMetadata)]
 
 
 def find_matching_files(file_names, file_name_re):
@@ -134,7 +135,12 @@ def download_dropbox_file(file_name, client, destination_file_name=None):
             metadata, _file = client.files_download(path=file_name)
             f.write(_file.content)
     except Exception as e:
-        print(f'Failed to download {file_name} to {local_path}')
+        if 'not_found' in str(e):
+            print(f'Download failed. Could not find {file_name}')
+        elif 'not_file' in str(e):
+            print(f'Download failed. {file_name} is not a file')
+        else:
+            print(f'Failed to download {file_name} to {local_path}')
         os.remove(local_path)
         raise(e)
 
