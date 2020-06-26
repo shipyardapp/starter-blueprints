@@ -105,10 +105,24 @@ def find_dropbox_file_names(client, prefix=None):
     Fetched all the files in the bucket which are returned in a list as 
     file names
     """
+    result = []
+    folders = []
     if prefix and not prefix.startswith('/'):
         prefix = f'/{prefix}'
-    files = client.files_list_folder(prefix)
-    return [f.name for f in files.entries if isinstance(f, FileMetadata)]
+    try:
+        files = client.files_list_folder(prefix)
+    except Exception as e:
+        print(f'Failed to search folder {prefix}')
+        return []
+
+    for f in files.entries:
+        if isinstance(f, FileMetadata):
+            result.append(f.name)
+        elif isinstance(f, FolderMetadata):
+            folders.append(f.name)
+    for folder in folders:
+        result.extend(find_dropbox_file_names(client, prefix=folder))
+    return result
 
 
 def find_matching_files(file_names, file_name_re):
