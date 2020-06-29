@@ -15,9 +15,9 @@ SCOPES = ['https://spreadsheets.google.com/feeds',
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--sheet-name', dest='sheet_name', default='',
+    parser.add_argument('--source-file-name', dest='file_name', default='',
                         required=False)
-    parser.add_argument('--workbook-name', dest='workbook_name',
+    parser.add_argument('--tab-name', dest='tab_name',
                         default=None, required=False)
     parser.add_argument('--destination-file-name',
                         dest='destination_file_name', default=None,
@@ -29,6 +29,7 @@ def get_args():
                         default='A1:ZZZ5000000', required=False)
     parser.add_argument('--service-account', dest='gcp_application_credentials',
                         default=None, required=True)
+    parser.add_argument('--drive', dest='drive', default=None, required=False)
     return parser.parse_args()
 
 
@@ -115,7 +116,7 @@ def find_matching_files(file_blobs, file_name_re):
 def download_google_sheet_file(
         service,
         spreadsheet_id,
-        workbook_name,
+        tab_name,
         cell_range,
         destination_file_name=None):
     """
@@ -124,11 +125,11 @@ def download_google_sheet_file(
     """
     local_path = os.path.normpath(f'{os.getcwd()}/{destination_file_name}')
     try:
-        if workbook_name:
+        if tab_name:
             if check_workbook_exists(service=service,
                                     spreadsheet_id=spreadsheet_id,
-                                    workbook_name=workbook_name):
-                cell_range = f'{workbook_name}!{cell_range}'
+                                    tab_name=tab_name):
+                cell_range = f'{tab_name}!{cell_range}'
         sheet = service.spreadsheets().values().get(
                                     spreadsheetId=spreadsheet_id,
                                     range=cell_range).execute()
@@ -164,45 +165,68 @@ def get_service(credentials):
         raise(e)
 
 
-def check_workbook_exists(service, spreadsheet_id, workbook_name):
+def check_workbook_exists(service, spreadsheet_id, tab_name):
     """
     Checks if the workbook exists within the spreadsheet.
     """
     try:
         spreadsheet = service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
         sheets = spreadsheet['sheets']
-        exists = [True for sheet in sheets if sheet['properties']['title'] == workbook_name]
+        exists = [True for sheet in sheets if sheet['properties']['title'] == tab_name]
         return True if exists else False
     except Exception as e:
-        print(f'Failed to check workbook {workbook_name} for spreadsheet ' \
+        print(f'Failed to check workbook {tab_name} for spreadsheet ' \
                 f'{spreadsheet_id}')
         raise(e)
 
 
-def get_spreadsheet_id_by_name(drive_service, sheet_name):
+def get_shared_drive_id(service, drive):
+    """
+    Search for the drive under shared Google Drives.
+    """
+    drives = service.drives().list().execute()
+    drive_id = None
+    for _drive in drives['drives']:
+        if _drive['name'] == drive:
+            drive_id = _drive['id']
+    return drive_id
+
+
+def get_spreadsheet_id_by_name(drive_service, file_name, drive):
     """
     Attempts to get sheet id from the Google Drive Client using the
     sheet name
     """
     try:
+        drive_id = None
+        if drive:
+            drive_id = get_shared_drive_id(drive_service, drive)
+
         query = 'mimeType="application/vnd.google-apps.spreadsheet"'
-        query += f' and name = "{sheet_name}"'
-        results = drive_service.files().list(q=str(query)).execute()
+        query += f' and name = "{file_name}"'
+        if drive:
+            results = service.files().list(q=str(query), supportsAllDrives=True,
+                    includeItemsFromAllDrives=True, corpora="drive",
+                    driveId=drive_id,
+                    fields="files(id, name)").execute()
+        else:
+            results = drive_service.files().list(q=str(query)).execute()
         files = results['files']
         for _file in files:
             return _file['id']
         return None
     except Exception as e:
-        print(f'Failed to fetch spreadsheetId for {sheet_name}')
+        print(f'Failed to fetch spreadsheetId for {file_name}')
         raise(e)
 
 
 def main():
     args = get_args()
     tmp_file = set_environment_variables(args)
-    sheet_name = clean_folder_name(args.sheet_name)
-    workbook_name = args.workbook_name
+    file_name = clean_folder_name(args.file_name)
+    tab_name = args.tab_name
     cell_range = args.cell_range
+    drive = args.drive
 
     destination_folder_name = clean_folder_name(args.destination_folder_name)
     if not os.path.exists(destination_folder_name) and \
@@ -215,11 +239,13 @@ def main():
         service, drive_service = get_service(credentials=args.gcp_application_credentials)
 
     spreadsheet_id = get_spreadsheet_id_by_name(drive_service=drive_service,
-                                            sheet_name=sheet_name)
+                                            file_name=file_name, drive=drive)
     if not spreadsheet_id:
-        print(f'Sheet {sheet_name} does not exist')
+        print(f'Sheet {file_name} does not exist')
         return
 
+    if not args.destination_file_name:
+        args.destination_file_name = f'{file_name} - {tab_name}'
     destination_name = determine_destination_name(
             destination_folder_name=destination_folder_name,
             destination_file_name=args.destination_file_name)
@@ -229,7 +255,7 @@ def main():
         if not os.path.exists(path):
             os.makedirs(path)
 
-    download_google_sheet_file(service=service, workbook_name=workbook_name,
+    download_google_sheet_file(service=service, tab_name=tab_name,
                            spreadsheet_id=spreadsheet_id, cell_range=cell_range,
                            destination_file_name=destination_name)
 
