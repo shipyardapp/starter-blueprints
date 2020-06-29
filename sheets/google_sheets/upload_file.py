@@ -4,6 +4,7 @@ import json
 import csv
 import tempfile
 import argparse
+import socket
 import glob
 
 from googleapiclient.discovery import build
@@ -12,6 +13,7 @@ from google.oauth2 import service_account
 
 SCOPES = ['https://spreadsheets.google.com/feeds',
           'https://www.googleapis.com/auth/drive']
+socket.setdefaulttimeout(600)
 #SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
 
@@ -21,11 +23,11 @@ def get_args():
             required=True)
     parser.add_argument('--source-folder-name', dest='source_folder_name',
             default='', required=False)
-    parser.add_argument('--sheet-name',
-            dest='sheet_name', default='', required=False)
+    parser.add_argument('--destination-file-name',
+            dest='file_name', default='', required=False)
     parser.add_argument('--starting-cell',
             dest='starting_cell', default='A1', required=False)
-    parser.add_argument('--workbook-name', dest='workbook_name',
+    parser.add_argument('--tab-name', dest='tab_name',
             default=None, required=False)
     parser.add_argument('--service-account', dest='gcp_application_credentials',
             default=None, required=True)
@@ -76,22 +78,22 @@ def combine_folder_and_file_name(folder_name, file_name):
     return combined_name
 
 
-def check_workbook_exists(service, spreadsheet_id, workbook_name):
+def check_workbook_exists(service, spreadsheet_id, tab_name):
     """
     Checks if the workbook exists within the spreadsheet.
     """
     try:
         spreadsheet = service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
         sheets = spreadsheet['sheets']
-        exists = [True for sheet in sheets if sheet['properties']['title'] == workbook_name]
+        exists = [True for sheet in sheets if sheet['properties']['title'] == tab_name]
         return True if exists else False
     except Exception as e:
-        print(f'Failed to check workbook {workbook_name} for spreadsheet ' \
+        print(f'Failed to check workbook {tab_name} for spreadsheet ' \
                 f'{spreadsheet_id}')
         raise(e)
 
 
-def add_workbook(service, spreadsheet_id, workbook_name):
+def add_workbook(service, spreadsheet_id, tab_name):
     """
     Adds a workbook to the spreadsheet.
     """
@@ -100,7 +102,7 @@ def add_workbook(service, spreadsheet_id, workbook_name):
             'requests': [{
                 'addSheet': {
                     'properties': {
-                        'title': workbook_name,
+                        'title': tab_name,
                     }
                 }
             }]
@@ -118,17 +120,23 @@ def add_workbook(service, spreadsheet_id, workbook_name):
 
 def upload_google_sheets_file(
         service,
-        sheet_name,
+        file_name,
         source_full_path,
         starting_cell,
         spreadsheet_id,
-        workbook_name):
+        tab_name):
     """
     Uploads a single file to Google Sheets.
     """
     try:
         if not spreadsheet_id:
-            file_metadata = {'properties': {'title': sheet_name}}
+            file_metadata = {'properties': {
+                                            'title': file_name
+                                            },
+                             'namedRanges':{
+                                            'range': starting_cell
+                                            }
+                             }
             spreadsheet = service.spreadsheets().create(body=file_metadata,
                                                 fields='spreadsheetId').execute()
             spreadsheet_id = spreadsheet['spreadsheetId']
@@ -136,14 +144,14 @@ def upload_google_sheets_file(
         # check if the workbook exists and create it if it doesn't
         workbook_exists = check_workbook_exists(service=service,
                                               spreadsheet_id=spreadsheet_id,
-                                              workbook_name=workbook_name)
+                                              tab_name=tab_name)
         if not workbook_exists:
             add_workbook(service=service, spreadsheet_id=spreadsheet_id,
-                            workbook_name=workbook_name)
+                            tab_name=tab_name)
 
         data = []
         with open(source_full_path, newline='') as f:
-            reader = csv.reader(f, delimiter=',', quoting=csv.QUOTE_NONE)
+            reader = csv.reader((line.replace('\0', '') for line in f), delimiter=',')
             for row in reader:
                 # stripping any empty rows
                 if set(row) != {''}:
@@ -154,8 +162,8 @@ def upload_google_sheets_file(
         else:
             _range = 'A1:ZZZ5000000'
 
-        if workbook_name:
-            _range = f'{workbook_name}!{_range}'
+        if tab_name:
+            _range = f'{tab_name}!{_range}'
 
         body = {'value_input_option': 'RAW',
                 'data': [{
@@ -175,27 +183,27 @@ def upload_google_sheets_file(
                         ' being to large (Limit is 5,000,000 cells)')
         else:
             print(f'Failed to upload spreadsheet {source_full_path} to ' \
-                    f'{sheet_name}')
+                    f'{file_name}')
         raise(e)
 
-    print(f'{source_full_path} successfully uploaded to {sheet_name}')
+    print(f'{source_full_path} successfully uploaded to {file_name}')
 
 
-def get_spreadsheet_id_by_name(drive_service, sheet_name):
+def get_spreadsheet_id_by_name(drive_service, file_name):
     """
     Attempts to get sheet id from the Google Drive Client using the
-    sheet name
+    file_name name
     """
     try:
         query = 'mimeType="application/vnd.google-apps.spreadsheet"'
-        query += f' and name = "{sheet_name}"'
+        query += f' and name = "{file_name}"'
         results = drive_service.files().list(q=str(query)).execute()
         files = results['files']
         for _file in files:
             return _file['id']
         return None
     except Exception as e:
-        print(f'Failed to fetch spreadsheetId for {sheet_name}')
+        print(f'Failed to fetch spreadsheetId for {file_name}')
         raise(e)
 
 
@@ -224,9 +232,13 @@ def main():
     source_full_path = combine_folder_and_file_name(
         folder_name=f'{os.getcwd()}/{source_folder_name}',
         file_name=source_file_name)
-    sheet_name = clean_folder_name(args.sheet_name)
-    workbook_name = args.workbook_name
+    file_name = clean_folder_name(args.file_name)
+    tab_name = args.tab_name
     starting_cell = args.starting_cell
+
+    if not os.path.isfile(source_full_path):
+        print(f'{source_full_path} does not exist')
+        return
 
     if tmp_file:
         service, drive_service = get_service(credentials=tmp_file)
@@ -234,12 +246,12 @@ def main():
         service, drive_service = get_service(credentials=args.gcp_application_credentials)
 
     spreadsheet_id = get_spreadsheet_id_by_name(drive_service=drive_service,
-                                            sheet_name=sheet_name)
+                                            file_name=file_name)
     # check if workbook exists in the spreadsheet
-    upload_google_sheets_file(service=service, sheet_name=sheet_name,
+    upload_google_sheets_file(service=service, file_name=file_name,
                               source_full_path=source_full_path,
                               spreadsheet_id=spreadsheet_id,
-                              workbook_name=workbook_name,
+                              tab_name=tab_name,
                               starting_cell=starting_cell)
 
     if tmp_file:
