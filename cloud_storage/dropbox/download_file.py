@@ -117,7 +117,7 @@ def find_dropbox_file_names(client, prefix=None):
 
     for f in files.entries:
         if isinstance(f, FileMetadata):
-            result.append(f.name)
+            result.append(f.path_lower)
         elif isinstance(f, FolderMetadata):
             folders.append(f.path_lower)
     for folder in folders:
@@ -205,13 +205,10 @@ def main():
                     destination_file_name=args.destination_file_name,
                     source_full_path=file_name, file_number=index+1)
 
-            full_path = combine_folder_and_file_name(
-                                                folder_name=source_folder_name,
-                                                file_name=file_name)
-            if not full_path.startswith('/'):
-                full_path = f'/{full_path}'
+            if not file_name.startswith('/'):
+                file_name = f'/{file_name}'
             print(f'Downloading file {index+1} of {len(matching_file_names)}')
-            download_dropbox_file(file_name=full_path, client=client,
+            download_dropbox_file(file_name=file_name, client=client,
                                   destination_file_name=destination_name)
     else:
         destination_name = determine_destination_name(
