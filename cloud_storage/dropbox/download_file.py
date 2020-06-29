@@ -119,7 +119,7 @@ def find_dropbox_file_names(client, prefix=None):
         if isinstance(f, FileMetadata):
             result.append(f.name)
         elif isinstance(f, FolderMetadata):
-            folders.append(f.name)
+            folders.append(f.path_lower)
     for folder in folders:
         result.extend(find_dropbox_file_names(client, prefix=folder))
     return result
