@@ -31,6 +31,7 @@ def get_args():
             default=None, required=False)
     parser.add_argument('--service-account', dest='gcp_application_credentials',
             default=None, required=True)
+    parser.add_argument('--drive', dest='drive', default=None, required=False)
     return parser.parse_args()
 
 
@@ -88,8 +89,8 @@ def check_workbook_exists(service, spreadsheet_id, tab_name):
         exists = [True for sheet in sheets if sheet['properties']['title'] == tab_name]
         return True if exists else False
     except Exception as e:
-        print(f'Failed to check workbook {tab_name} for spreadsheet ' \
-                f'{spreadsheet_id}')
+        print(f'Failed to check spreadsheet {spreadsheet_id} for a sheet ' \
+                f'named {tab_name}')
         raise(e)
 
 
@@ -189,15 +190,37 @@ def upload_google_sheets_file(
     print(f'{source_full_path} successfully uploaded to {file_name}')
 
 
-def get_spreadsheet_id_by_name(drive_service, file_name):
+def get_shared_drive_id(service, drive):
+    """
+    Search for the drive under shared Google Drives.
+    """
+    drives = service.drives().list().execute()
+    drive_id = None
+    for _drive in drives['drives']:
+        if _drive['name'] == drive:
+            drive_id = _drive['id']
+    return drive_id
+
+
+def get_spreadsheet_id_by_name(drive_service, file_name, drive):
     """
     Attempts to get sheet id from the Google Drive Client using the
-    file_name name
+    sheet name
     """
     try:
+        drive_id = None
+        if drive:
+            drive_id = get_shared_drive_id(drive_service, drive)
+
         query = 'mimeType="application/vnd.google-apps.spreadsheet"'
         query += f' and name = "{file_name}"'
-        results = drive_service.files().list(q=str(query)).execute()
+        if drive:
+            results = drive_service.files().list(q=str(query), supportsAllDrives=True,
+                    includeItemsFromAllDrives=True, corpora="drive",
+                    driveId=drive_id,
+                    fields="files(id, name)").execute()
+        else:
+            results = drive_service.files().list(q=str(query)).execute()
         files = results['files']
         for _file in files:
             return _file['id']
@@ -235,6 +258,7 @@ def main():
     file_name = clean_folder_name(args.file_name)
     tab_name = args.tab_name
     starting_cell = args.starting_cell
+    drive = args.drive
 
     if not os.path.isfile(source_full_path):
         print(f'{source_full_path} does not exist')
@@ -246,7 +270,11 @@ def main():
         service, drive_service = get_service(credentials=args.gcp_application_credentials)
 
     spreadsheet_id = get_spreadsheet_id_by_name(drive_service=drive_service,
-                                            file_name=file_name)
+                                            file_name=file_name, drive=drive)
+    if not spreadsheet_id:
+        print(f'The spreadsheet {file_name} does not exist')
+        return
+
     # check if workbook exists in the spreadsheet
     upload_google_sheets_file(service=service, file_name=file_name,
                               source_full_path=source_full_path,
