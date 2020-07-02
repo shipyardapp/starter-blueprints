@@ -130,6 +130,9 @@ def download_google_sheet_file(
                                     spreadsheet_id=spreadsheet_id,
                                     tab_name=tab_name):
                 cell_range = f'{tab_name}!{cell_range}'
+            else:
+                print(f'Sheet {tab_name} could not be found')
+                return
         sheet = service.spreadsheets().values().get(
                                     spreadsheetId=spreadsheet_id,
                                     range=cell_range).execute()
@@ -205,7 +208,7 @@ def get_spreadsheet_id_by_name(drive_service, file_name, drive):
         query = 'mimeType="application/vnd.google-apps.spreadsheet"'
         query += f' and name = "{file_name}"'
         if drive:
-            results = service.files().list(q=str(query), supportsAllDrives=True,
+            results = drive_service.files().list(q=str(query), supportsAllDrives=True,
                     includeItemsFromAllDrives=True, corpora="drive",
                     driveId=drive_id,
                     fields="files(id, name)").execute()
