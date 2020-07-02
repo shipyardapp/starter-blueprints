@@ -116,6 +116,7 @@ def find_matching_files(file_blobs, file_name_re):
 def download_google_sheet_file(
         service,
         spreadsheet_id,
+        file_name,
         tab_name,
         cell_range,
         destination_file_name=None):
@@ -138,16 +139,16 @@ def download_google_sheet_file(
                                     range=cell_range).execute()
 
         if not sheet.get('values'):
-            print(f'No values for {spreadsheet_id}.. Not downloading')
+            print(f'No values for {file_name}.. Not downloading')
             return
 
         values = sheet['values']
         with open(local_path, '+w') as f:
             writer = csv.writer(f)
             writer.writerows(values)
-        print(f'Successfully {spreadsheet_id} downloaded to {local_path}')
+        print(f'Successfully downloaded {file_name} - {tab_name} to {local_path}')
     except Exception as e:
-        print(f'Failed to download {spreadsheet_id} from Google Sheets')
+        print(f'Failed to download {file_name} from Google Sheets')
         raise(e)
 
 
@@ -248,7 +249,7 @@ def main():
         return
 
     if not args.destination_file_name:
-        args.destination_file_name = f'{file_name} - {tab_name}'
+        args.destination_file_name = f'{file_name} - {tab_name}.csv'
     destination_name = determine_destination_name(
             destination_folder_name=destination_folder_name,
             destination_file_name=args.destination_file_name)
@@ -259,7 +260,7 @@ def main():
             os.makedirs(path)
 
     download_google_sheet_file(service=service, tab_name=tab_name,
-                           spreadsheet_id=spreadsheet_id, cell_range=cell_range,
+                           spreadsheet_id=spreadsheet_id, file_name=file_name, cell_range=cell_range,
                            destination_file_name=destination_name)
 
     if tmp_file:
