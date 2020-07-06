@@ -154,6 +154,7 @@ def download_ftp_file(client, file_name, destination_file_name=None):
         with open(local_path, 'wb') as f:
             client.retrbinary(f'RETR {file_name}', f.write)
     except Exception as e:
+        os.remove(local_path)
         print(f'Failed to download {file_name}')
         raise(e)
 
