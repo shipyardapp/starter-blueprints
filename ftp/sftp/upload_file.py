@@ -27,6 +27,7 @@ def get_args():
     parser.add_argument('--host', dest='host', default=None, required=True)
     parser.add_argument('--port', dest='port', default=21, required=True)
     parser.add_argument('--username', dest='username', default=None, required=False)
+    parser.add_argument('--password', dest='password', default=None, required=False)
     parser.add_argument('--key', dest='key', default=None, required=False)
     return parser.parse_args()
 
@@ -173,17 +174,22 @@ def upload_sftp_file(
             f'{destination_full_path}')
 
 
-def get_client(host, port, username, key):
+def get_client(host, port, username, key=None, password=None):
     """
     Attempts to create an SFTP client at the specified hots with the
     specified credentials
     """
     try:
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        k = paramiko.RSAKey.from_private_key_file(key)
-        ssh.connect(hostname=host, port=port, username=username, pkey=k)
-        client = ssh.open_sftp()
+        if key:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            k = paramiko.RSAKey.from_private_key_file(key)
+            ssh.connect(hostname=host, port=port, username=username, pkey=k)
+            client = ssh.open_sftp()
+        else:
+            transport = paramiko.Transport((host, int(port)))
+            transport.connect(None, username, password)
+            client = paramiko.SFTPClient.from_transport(transport)
         return client
     except Exception as e:
         print(f'Error accessing the SFTP server with the specified credentials' \
@@ -196,7 +202,27 @@ def main():
     host = args.host
     port = args.port
     username = args.username
+    password = args.password
     key = args.key
+    if not password and not key:
+        print(f'Must specify a password or a RSA key')
+        return
+
+    key_path = None
+    if key:
+        if not os.path.isfile(key):
+            fd, key_path = tempfile.mkstemp()
+            print(f'Storing RSA temporarily at {key_path}')
+            with os.fdopen(fd, 'w') as tmp:
+                tmp.write(key)
+            key = key_path
+        client = get_client(host=host, port=port, username=username,
+                            key=key)
+    elif password:
+        client = get_client(host=host, port=port, username=username,
+                            password=password)
+
+
     source_file_name = args.source_file_name
     source_folder_name = args.source_folder_name
     source_full_path = combine_folder_and_file_name(
@@ -205,8 +231,6 @@ def main():
     destination_folder_name = clean_folder_name(args.destination_folder_name)
     source_file_name_match_type = args.source_file_name_match_type
 
-    client = get_client(host=host, port=port, username=username,
-                            key=key)
 
     if source_file_name_match_type == 'regex_match':
         file_names = find_all_local_file_names(source_folder_name)
@@ -242,6 +266,10 @@ def main():
 
         upload_sftp_file(client=client, source_full_path=source_full_path,
                         destination_full_path=destination_full_path)
+
+    if key_path:
+        print(f'Removing temporary RSA Key file {key_path}')
+        os.remove(key_path)
 
 
 if __name__ == '__main__':
