@@ -14,7 +14,6 @@ from google.oauth2 import service_account
 SCOPES = ['https://spreadsheets.google.com/feeds',
           'https://www.googleapis.com/auth/drive']
 socket.setdefaulttimeout(600)
-#SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
 
 def get_args():
