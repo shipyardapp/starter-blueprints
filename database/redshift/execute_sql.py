@@ -33,6 +33,7 @@ def main():
     try:
         cur = con.cursor()
         cur.execute(query)
+        con.commit()
     except Exception as e:
         print(f'Failed to connect to database {database}')
         raise(e)
