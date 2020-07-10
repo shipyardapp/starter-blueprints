@@ -1,4 +1,6 @@
 import os
+import json
+import tempfile
 import argparse
 
 from google.cloud import bigquery
