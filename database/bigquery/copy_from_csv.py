@@ -1,5 +1,7 @@
 import os
+import re
 import json
+import glob
 import tempfile
 import argparse
 
@@ -15,8 +17,13 @@ def get_args():
     parser.add_argument('--dataset', dest='dataset', required=True)
     parser.add_argument('--table', dest='table', required=True)
     parser.add_argument('--service-account', dest='service_account', required=True)
-    parser.add_argument('--source-file-name', dest='source_file_path',
-            default='output.csv', required=True)
+    parser.add_argument('--upload-type', dest='upload_type',
+            choices={'append', 'overwrite'}, required=False)
+    parser.add_argument('--source-file-name-match-type',
+            dest='source_file_name_match_type',
+            choices={'exact_match', 'regex_match'}, required=True)
+    parser.add_argument('--source-file-name', dest='source_file_name',
+            default=None, required=True)
     parser.add_argument('--source-folder-name',
             dest='source_folder_name', default='', required=False)
     args = parser.parse_args()
@@ -44,17 +51,42 @@ def set_environment_variables(args):
         return
 
 
+def find_all_local_file_names(source_folder_name):
+    """
+    Returns a list of all files that exist in the current working directory,
+    filtered by source_folder_name if provided.
+    """
+    cwd = os.getcwd()
+    cwd_extension = os.path.normpath(f'{cwd}/{source_folder_name}/**')
+    file_names = glob.glob(cwd_extension, recursive=True)
+    return [file_name for file_name in file_names if os.path.isfile(file_name)]
+
+
+def find_all_file_matches(file_names, file_name_re):
+    """
+    Return a list of all file_names that matched the regular expression.
+    """
+    matching_file_names = []
+    for _file in file_names:
+        if re.search(file_name_re, _file):
+            matching_file_names.append(_file)
+
+    return matching_file_names
+
+
 def combine_folder_and_file_name(folder_name, file_name):
     """
-    Combine together the provided folder_name and file_name into one path variable.
+    Combine together the provided folder_name and file_name into one path
+    variable.
     """
     combined_name = os.path.normpath(
         f'{folder_name}{"/" if folder_name else ""}{file_name}')
+    combined_name = os.path.normpath(combined_name)
 
     return combined_name
 
 
-def copy_from_csv(client, dataset, table, source_file_path):
+def copy_from_csv(client, dataset, table, source_file_path, upload_type):
     """
     Copy CSV data into Bigquery table.
     """
@@ -62,6 +94,10 @@ def copy_from_csv(client, dataset, table, source_file_path):
         dataset_ref = client.dataset(dataset)
         table_ref = dataset_ref.table(table)
         job_config = bigquery.LoadJobConfig()
+        if upload_type == 'append':
+            job_config.write_disposition = bigquery.WriteDisposition.WRITE_APPEND
+        else:
+            job_config.write_disposition = bigquery.WriteDisposition.WRITE_TRUNCATE
         job_config.source_format = bigquery.SourceFormat.CSV
         job_config.skip_leading_rows = 1
         job_config.autodetect = True
@@ -95,22 +131,36 @@ def main():
     tmp_file = set_environment_variables(args)
     dataset = args.dataset
     table = args.table
-    source_file_path = args.source_file_path
+    upload_type = args.upload_type
+    source_file_name = args.source_file_name
     source_folder_name = args.source_folder_name
     source_full_path = combine_folder_and_file_name(
-        folder_name=source_folder_name, file_name=source_file_path)
-
-    if not os.path.isfile(source_full_path):
-        print(f'File {source_full_path} does not exist')
-        return
+        folder_name=f'{os.getcwd()}/{source_folder_name}',
+        file_name=source_file_name)
+    source_file_name_match_type = args.source_file_name_match_type
 
     if tmp_file:
         client = get_client(tmp_file)
     else:
         client = get_client(args.service_account)
 
-    copy_from_csv(client=client, dataset=dataset, table=table,
-                    source_file_path=source_file_path)
+    if source_file_name_match_type == 'regex_match':
+        file_names = find_all_local_file_names(source_folder_name)
+        matching_file_names = find_all_file_matches(
+            file_names, re.compile(source_file_name))
+        print(f'{len(matching_file_names)} files found. Preparing to upload...')
+
+        for index, file_name in enumerate(matching_file_names):
+            print(f'Uploading file {index+1} of {len(matching_file_names)}')
+            copy_from_csv(client=client, dataset=dataset, table=table,
+                    source_file_path=file_name, upload_type=upload_type)
+    else:
+        if not os.path.isfile(source_full_path):
+            print(f'File {source_full_path} does not exist')
+            return
+
+        copy_from_csv(client=client, dataset=dataset, table=table,
+                    source_file_path=source_full_path, upload_type=upload_type)
 
     if tmp_file:
         print(f'Removing temporary credentials file {tmp_file}')
