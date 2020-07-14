@@ -8,7 +8,7 @@ venv/bin/python setup.py install
 ```
 
 You will need the sftp server hostname/address as well as port if it's not the
-default sftp port(21) as well as the user credentials
+default sftp port(22) as well as the user credentials
 
 # Example Commands
 ## Upload
