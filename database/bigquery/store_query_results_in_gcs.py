@@ -66,7 +66,7 @@ def enumerate_destination_file_name(destination_file_name):
         destination_file_name = re.sub(
             r'\.', f'_*.', destination_file_name, 1)
     else:
-        destination_file_name = f'{destination_file_name}_{file_number}'
+        destination_file_name = f'{destination_file_name}_*'
     return destination_file_name
 
 
