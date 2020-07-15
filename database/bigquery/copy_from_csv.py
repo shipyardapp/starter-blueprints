@@ -94,12 +94,11 @@ def copy_from_csv(client, dataset, table, source_file_path, upload_type):
         dataset_ref = client.dataset(dataset)
         table_ref = dataset_ref.table(table)
         job_config = bigquery.LoadJobConfig()
-        if upload_type == 'append':
-            job_config.write_disposition = bigquery.WriteDisposition.WRITE_APPEND
-        else:
+        if upload_type == 'overwrite':
             job_config.write_disposition = bigquery.WriteDisposition.WRITE_TRUNCATE
+        else:
+            job_config.write_disposition = bigquery.WriteDisposition.WRITE_APPEND
         job_config.source_format = bigquery.SourceFormat.CSV
-        job_config.skip_leading_rows = 1
         job_config.autodetect = True
         with open(source_file_path, 'rb') as source_file:
             job = client.load_table_from_file(source_file, table_ref,
