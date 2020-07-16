@@ -7,7 +7,7 @@ def get_args():
     parser.add_argument('--password', dest='password', required=False)
     parser.add_argument('--host', dest='host', required=True)
     parser.add_argument('--database',
-                        dest='database', required=True)
+                        dest='database', required=False)
     parser.add_argument('--port', dest='port', default='5432', required=False)
     parser.add_argument('--query', dest='query', required=True)
     args = parser.parse_args()
