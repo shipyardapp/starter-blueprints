@@ -1,4 +1,4 @@
-import pymssql
+from sqlalchemy import create_engine, text
 import argparse
 import os
 import pandas as pd
@@ -10,7 +10,9 @@ def get_args():
     parser.add_argument('--password', dest='password', required=False)
     parser.add_argument('--host', dest='host', required=True)
     parser.add_argument('--database', dest='database', required=True)
-    parser.add_argument('--port', dest='port', default='5432', required=False)
+    parser.add_argument('--port', dest='port', default='1433', required=False)
+    parser.add_argument('--url-parameters', dest='url_parameters',
+            required=False)
     parser.add_argument('--query', dest='query', required=True)
     parser.add_argument('--destination-file-name', dest='destination_file_name',
             default='output.csv', required=True)
@@ -67,15 +69,18 @@ def main():
     host = args.host
     database = args.database
     port = args.port
+    url_parameters = args.url_parameters
     destination_file_name = args.destination_file_name
     destination_folder_name = args.destination_folder_name
     destination_full_path = combine_folder_and_file_name(
         folder_name=destination_folder_name, file_name=destination_file_name)
     file_header = convert_to_boolean(args.file_header)
-    query = args.query
+    query = text(args.query)
 
-    db = pymssql.connect(server=host, user=username, password=password,
-                        database=database, autocommit=True)
+    db_string = f'mssql+pymssql://{username}:{password}@{host}:{port}/{database}?{url_parameters}'
+    db_connection = create_engine(
+        db_string, execution_options=dict(
+            stream_results=True))
 
     if not os.path.exists(destination_folder_name) and (
             destination_folder_name != ''):
@@ -83,7 +88,7 @@ def main():
 
     create_csv(
         query=query,
-        db_connection=db,
+        db_connection=db_connection,
         destination_file_path=destination_full_path,
         file_header=file_header)
 
