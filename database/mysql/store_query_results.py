@@ -12,14 +12,14 @@ def get_args():
     parser.add_argument('--database', dest='database', required=True)
     parser.add_argument('--port', dest='port', default='3306', required=False)
     parser.add_argument('--url-parameters', dest='url_parameters',
-            required=False)
+                        required=False)
     parser.add_argument('--query', dest='query', required=True)
     parser.add_argument('--destination-file-name', dest='destination_file_name',
-            default='output.csv', required=True)
+                        default='output.csv', required=True)
     parser.add_argument('--destination-folder-name',
-            dest='destination_folder_name', default='', required=False)
+                        dest='destination_folder_name', default='', required=False)
     parser.add_argument('--file-header', dest='file_header', default='True',
-            required=False)
+                        required=False)
     args = parser.parse_args()
     return args
 
@@ -77,9 +77,9 @@ def main():
     file_header = convert_to_boolean(args.file_header)
     query = text(args.query)
 
-    db_string = f'mysql://{username}:{password}@{host}:{port}/{database}?{url_parameters}'
+    db_string = f'mysql+mysqlconnector://{username}:{password}@{host}:{port}/{database}?{url_parameters}'
     db_connection = create_engine(
-        db_string, execution_options=dict(
+        db_string, pool_recycle=3600, execution_options=dict(
             stream_results=True))
 
     if not os.path.exists(destination_folder_name) and (
