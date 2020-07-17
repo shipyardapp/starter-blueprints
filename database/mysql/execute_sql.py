@@ -27,8 +27,7 @@ def main():
     query = text(args.query)
 
     db_string = f'mysql+mysqlconnector://{username}:{password}@{host}:{port}/{database}?{url_parameters}'
-    db = create_engine(db_string, pool_recycle=3600, execution_options=dict(
-        stream_results=True))
+    db = create_engine(db_string, pool_recycle=3600)
 
     db.execute(query)
     print('Your query has been successfully executed.')
