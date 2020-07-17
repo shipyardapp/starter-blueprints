@@ -12,14 +12,14 @@ def get_args():
     parser.add_argument('--database', dest='database', required=True)
     parser.add_argument('--port', dest='port', default='1433', required=False)
     parser.add_argument('--url-parameters', dest='url_parameters',
-            required=False)
+                        required=False)
     parser.add_argument('--query', dest='query', required=True)
     parser.add_argument('--destination-file-name', dest='destination_file_name',
-            default='output.csv', required=True)
+                        default='output.csv', required=True)
     parser.add_argument('--destination-folder-name',
-            dest='destination_folder_name', default='', required=False)
+                        dest='destination_folder_name', default='', required=False)
     parser.add_argument('--file-header', dest='file_header', default='True',
-            required=False)
+                        required=False)
     args = parser.parse_args()
     return args
 
@@ -59,6 +59,7 @@ def create_csv(query, db_connection, destination_file_path, file_header=True):
             chunk.to_csv(destination_file_path, mode='a',
                          header=False, index=False)
         i += 1
+    print(f'{destination_file_path} was succesfully created.')
     return
 
 
