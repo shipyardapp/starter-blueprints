@@ -1,5 +1,5 @@
 import argparse
-import pymssql
+from sqlalchemy import create_engine, text
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -8,7 +8,9 @@ def get_args():
     parser.add_argument('--host', dest='host', required=True)
     parser.add_argument('--database',
                         dest='database', required=False)
-    parser.add_argument('--port', dest='port', default='5432', required=False)
+    parser.add_argument('--port', dest='port', default='1433', required=False)
+    parser.add_argument('--url-parameters',
+                        dest='url_parameters', required=False)
     parser.add_argument('--query', dest='query', required=True)
     args = parser.parse_args()
     return args
@@ -21,13 +23,13 @@ def main():
     host = args.host
     database = args.database
     port = args.port
-    query = args.query
+    url_parameters = args.url_parameters
+    query = text(args.query)
 
-    db = pymssql.connect(server=host, user=username, password=password,
-                        database=database, autocommit=True)
-    cursor = db.cursor()
+    db_string = f'mssql+pymssql://{username}:{password}@{host}:{port}/{database}?{url_parameters}'
+    db = create_engine(db_string)
 
-    cursor.execute(query)
+    db.execute(query)
     print('Your query has been successfully executed.')
 
 
