@@ -1,4 +1,4 @@
-import mysql.connector
+from sqlalchemy import create_engine, text
 import argparse
 
 
@@ -9,6 +9,8 @@ def get_args():
     parser.add_argument('--host', dest='host', required=True)
     parser.add_argument('--database', dest='database', required=True)
     parser.add_argument('--port', dest='port', default='3306', required=False)
+    parser.add_argument('--url-parameters',
+                        dest='url_parameters', required=False)
     parser.add_argument('--query', dest='query', required=True)
     args = parser.parse_args()
     return args
@@ -21,14 +23,13 @@ def main():
     host = args.host
     database = args.database
     port = args.port
-    query = args.query
+    url_parameters = args.url_parameters
+    query = text(args.query)
 
-    db = mysql.connector.connect(host=host, port=int(port), user=username,
-                                passwd=password, database=database,
-                                autocommit=True)
+    db_string = f'mysql://{username}:{password}@{host}:{port}/{database}?{url_parameters}'
+    db = create_engine(db_string)
 
-    cur = db.cursor()
-    cur.execute(query)
+    db.execute(query)
     print('Your query has been successfully executed.')
 
 
