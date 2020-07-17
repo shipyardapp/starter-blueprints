@@ -25,26 +25,12 @@ def get_args():
                         default='output.csv', required=True)
     parser.add_argument('--source-folder-name',
                         dest='source_folder_name', default='', required=False)
-    parser.add_argument('--file-header', dest='file_header', default='True',
-                        required=False)
     parser.add_argument('--table-name', dest='table_name', default=None,
                         required=True)
     parser.add_argument('--insert-method', dest='insert_method', choices={'fail', 'replace', 'append'}, default='append',
                         required=False)
     args = parser.parse_args()
     return args
-
-
-def convert_to_boolean(string):
-    """
-    Shipyard can't support passing Booleans to code, so we have to convert
-    string values to their boolean values.
-    """
-    if string in ['True', 'true', 'TRUE']:
-        value = True
-    else:
-        value = False
-    return value
 
 
 def find_all_local_file_names(source_folder_name):
@@ -98,7 +84,6 @@ def main():
     source_folder_name = args.source_folder_name
     source_full_path = combine_folder_and_file_name(
         folder_name=source_folder_name, file_name=source_file_name)
-    file_header = convert_to_boolean(args.file_header)
     url_parameters = args.url_parameters
     table_name = args.table_name
     insert_method = args.insert_method
