@@ -1,5 +1,6 @@
 import argparse
 from sqlalchemy import create_engine, text
+import cx_Oracle
 
 
 def get_args():
@@ -13,6 +14,8 @@ def get_args():
     parser.add_argument('--url-parameters',
                         dest='url_parameters', required=False)
     parser.add_argument('--query', dest='query', required=True)
+    parser.add_argument('--oracle-location', dest='oracle_location', default=None,
+                        required=True)
     args = parser.parse_args()
     return args
 
@@ -26,8 +29,11 @@ def main():
     port = args.port
     url_parameters = args.url_parameters
     query = text(args.query)
+    oracle_location = args.oracle_location
 
-    db_string = f'oracle://{username}:{password}@{host}:{port}/{database}?{url_parameters}'
+    cx_Oracle.init_oracle_client(lib_dir=oracle_location)
+
+    db_string = f'oracle+cx_oracle://{username}:{password}@{host}:{port}/{database}?{url_parameters}'
     db = create_engine(db_string)
 
     db.execute(query)
