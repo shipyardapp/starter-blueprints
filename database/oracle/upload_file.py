@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, types
 import argparse
 import os
 import glob
@@ -70,10 +70,20 @@ def combine_folder_and_file_name(folder_name, file_name):
     return combined_name
 
 
+def force_object_dtype_as_object(df):
+    """
+    Prevents SQLAlchemy from uploading object columns as CLOB.
+    Instead forces as varchar, with max length of 
+    This increases upload speed by 40x.
+    """
+    return {c: types.VARCHAR() for c in df.columns[df.dtypes == 'object'].tolist()}
+
+
 def upload_data(source_full_path, table_name, insert_method, db_connection):
     for chunk in pd.read_csv(source_full_path, chunksize=10000):
+        dtype = force_object_dtype_as_object(chunk)
         chunk.to_sql(table_name, con=db_connection, index=False,
-                     if_exists=insert_method, chunksize=10000)
+                     if_exists=insert_method, dtype=dtype, chunksize=10000)
 
 
 def main():
