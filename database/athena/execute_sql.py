@@ -55,7 +55,7 @@ def main():
     job = client.start_query_execution(
                 QueryString=query,
                 QueryExecutionContext={'Database': database},
-                ResultConfiguration={'OutputLocation': bucket}
+                ResultConfiguration={'OutputLocation': f's3://{bucket}/'}
                 )
 
     job_id = job['QueryExecutionId']
