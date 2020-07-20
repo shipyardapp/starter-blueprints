@@ -73,6 +73,9 @@ def combine_folder_and_file_name(folder_name, file_name):
 
 
 def determine_os_name(platform):
+    """
+    Figure out which operating system the script is running on.
+    """
     if 'macOS' in platform:
         os_name = 'mac'
     elif 'windows' in platform:
@@ -83,6 +86,9 @@ def determine_os_name(platform):
 
 
 def determine_os_version(platform):
+    """
+    Figure out if the OS is running on 64bit or 32bit.
+    """
     if 'x86_64' in platform:
         os_version = '64bit'
     else:
@@ -90,7 +96,7 @@ def determine_os_version(platform):
     return os_version
 
 
-def install_oracle_package():
+def determine_oracle_package_download_url():
     current_os = platform.platform()
     os_name = determine_os_name(current_os)
     os_version = determine_os_version(current_os)
@@ -105,19 +111,35 @@ def install_oracle_package():
             "32bit": "https://www.oracle.com/database/technologies/instant-client/macos-x-ppc-downloads.html#license-lightbox"
         },
         "linux": {
-            "64bit": "https://download.oracle.com/otn_software/linux/instantclient/19600/instantclient-basic-linux.x64-19.6.0.0.0dbru.zip",
+            "64bit": "https://download.oracle.com/otn_software/linux/instantclient/19600/instantclient-basic-linux.x64-19.6.0.0.0dbru.zip", https: // download.oracle.com/otn_software/linux/instantclient/19600/instantclient-basic-linux.x64-19.6.0.0.0dbru.zip
             "32bit": "https://download.oracle.com/otn_software/linux/instantclient/19600//instantclient-basic-linux-19.6.0.0.0dbru.zip"
         }
     }
-
-    if not os.path.exists('./package'):
-        os.makedirs('./package')
     url = oracle_packages[os_name][os_version]
+    return url
+
+
+def install_oracle_package(url):
+    """
+    Install the Oracle Client using the user's current operating system.
+    Only runs if an oracle_location has not been provided.
+    Returns the installation location.
+    """
+
+    download_location = './oracle'
+    if not os.path.exists(download_location):
+        os.makedirs(download_location)
+
     r = requests.get(url, allow_redirects=True)
-    open('package/oracle.zip', 'wb').write(r.content)
-    with ZipFile('package/oracle.zip', 'r') as zip_file:
-        zip_file.extractall('package/oracle')
-    return 'package/oracle/instantclient_19_3'
+    open(f'{download_location}/oracle.zip', 'wb').write(r.content)
+
+    with ZipFile(f'{download_location}/oracle.zip', 'r') as zip_file:
+        top_level_folder = list(
+            set(item.split('/')[0] for item in zip_file.namelist()))[0]
+        zip_file.extractall(download_location)
+
+    installation_location = f'{download_location}/{top_level_folder}'
+    return installation_location
 
 
 def force_object_dtype_as_object(df):
@@ -133,6 +155,9 @@ def force_object_dtype_as_object(df):
 
 
 def upload_data(source_full_path, table_name, insert_method, db_connection):
+    """
+    Read the provided CSV and insert the rows into the provided table_name.
+    """
     for chunk in pd.read_csv(source_full_path, chunksize=10000):
         dtype = force_object_dtype_as_object(chunk)
         chunk.to_sql(table_name, con=db_connection, index=False,
@@ -158,7 +183,8 @@ def main():
     if args.oracle_location:
         oracle_location = args.oracle_location
     else:
-        oracle_location = install_oracle_package()
+        url = determine_oracle_package_download_url()
+        oracle_location = install_oracle_package(url)
 
     cx_Oracle.init_oracle_client(lib_dir=oracle_location)
 
