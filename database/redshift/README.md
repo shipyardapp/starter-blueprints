@@ -38,5 +38,5 @@ venv/bin/python database/redshift/execute_sql.py --query 'QUERY' --host HOST --p
 This will execute the SELECT command on table_name under the dataset and store it
 as a csv to 'output.csv'
 
-venv/bin/python database/redshift/execute_sql.py --query 'INSERT dataset.table_name ...' --host HOST --port PORT --username USERNAME --password PASSWORD --database DB_NAME --destination-file-name output.csv
+venv/bin/python database/redshift/execute_sql.py --query 'SELECT * FROM table_name ...' --host HOST --port PORT --username USERNAME --password PASSWORD --database DB_NAME --destination-file-name output.csv
 ```
