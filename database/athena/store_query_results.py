@@ -130,7 +130,7 @@ def main():
 
     status = poll_status(client, job_id)
     while not status:
-        time.sleep(0.1)
+        time.sleep(5)
         status = poll_status(client, job_id)
 
     create_csv(
