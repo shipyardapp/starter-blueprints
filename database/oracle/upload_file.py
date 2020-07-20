@@ -73,10 +73,13 @@ def combine_folder_and_file_name(folder_name, file_name):
 def force_object_dtype_as_object(df):
     """
     Prevents SQLAlchemy from uploading object columns as CLOB.
-    Instead forces as varchar, with max length of 
-    This increases upload speed by 40x.
+    Instead forces as varchar, with max length of 4000 bytes.
+    This increases upload speed by 40x compared to using CLOB.
+
+    Solution courtesy of:
+    https://stackoverflow.com/questions/42727990/speed-up-to-sql-when-writing-pandas-dataframe-to-oracle-database-using-sqlalch
     """
-    return {c: types.VARCHAR() for c in df.columns[df.dtypes == 'object'].tolist()}
+    return {c: types.VARCHAR(4000) for c in df.columns[df.dtypes == 'object'].tolist()}
 
 
 def upload_data(source_full_path, table_name, insert_method, db_connection):
