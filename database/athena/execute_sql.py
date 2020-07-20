@@ -29,7 +29,9 @@ def poll_status(client, job_id):
         print(f'Query completed')
         return result
     elif state == 'FAILED':
+        error_msg = result['QueryExecution']['Status'].get('StateChangeReason')
         print(f'Query failed')
+        print(error_msg)
         return result
     return False
 
@@ -58,11 +60,13 @@ def main():
 
     job_id = job['QueryExecutionId']
 
-    while not poll_status(client, job_id):
+    status = poll_status(client, job_id)
+    while not status:
         time.sleep(0.1)
-        print(f'Polling query status')
+        status = poll_status(client, job_id)
 
-    print('Your query has been successfully executed.')
+    if status['QueryExecution']['Status']['State'] != 'FAILED':
+        print('Your query has been successfully executed.')
 
 
 if __name__ == '__main__':
