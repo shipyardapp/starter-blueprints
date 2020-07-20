@@ -4,8 +4,10 @@ import os
 import glob
 import re
 import pandas as pd
-
+import requests
 import cx_Oracle
+from zipfile import ZipFile
+import platform
 
 
 def get_args():
@@ -32,7 +34,7 @@ def get_args():
     parser.add_argument('--insert-method', dest='insert_method', choices={'fail', 'replace', 'append'}, default='append',
                         required=False)
     parser.add_argument('--oracle-location', dest='oracle_location', default=None,
-                        required=True)
+                        required=False)
     args = parser.parse_args()
     return args
 
@@ -70,6 +72,54 @@ def combine_folder_and_file_name(folder_name, file_name):
     return combined_name
 
 
+def determine_os_name(platform):
+    if 'macOS' in platform:
+        os_name = 'mac'
+    elif 'windows' in platform:
+        os_name = 'windows'
+    else:
+        os_name = 'linux'
+    return os_name
+
+
+def determine_os_version(platform):
+    if 'x86_64' in platform:
+        os_version = '64bit'
+    else:
+        os_version = '32bit'
+    return os_version
+
+
+def install_oracle_package():
+    current_os = platform.platform()
+    os_name = determine_os_name(current_os)
+    os_version = determine_os_version(current_os)
+
+    oracle_packages = {
+        "windows": {
+            "64bit": "https://download.oracle.com/otn_software/nt/instantclient/19600/instantclient-basic-windows.x64-19.6.0.0.0dbru.zip",
+            "32bit": "https://download.oracle.com/otn_software/nt/instantclient/19600/instantclient-basic-nt-19.6.0.0.0dbru.zip"
+        },
+        "mac": {
+            "64bit": "https://download.oracle.com/otn_software/mac/instantclient/193000/instantclient-basic-macos.x64-19.3.0.0.0dbru.zip",
+            "32bit": "https://www.oracle.com/database/technologies/instant-client/macos-x-ppc-downloads.html#license-lightbox"
+        },
+        "linux": {
+            "64bit": "https://download.oracle.com/otn_software/linux/instantclient/19600/instantclient-basic-linux.x64-19.6.0.0.0dbru.zip",
+            "32bit": "https://download.oracle.com/otn_software/linux/instantclient/19600//instantclient-basic-linux-19.6.0.0.0dbru.zip"
+        }
+    }
+
+    if not os.path.exists('./package'):
+        os.makedirs('./package')
+    url = oracle_packages[os_name][os_version]
+    r = requests.get(url, allow_redirects=True)
+    open('package/oracle.zip', 'wb').write(r.content)
+    with ZipFile('package/oracle.zip', 'r') as zip_file:
+        zip_file.extractall('package/oracle')
+    return 'package/oracle/instantclient_19_3'
+
+
 def force_object_dtype_as_object(df):
     """
     Prevents SQLAlchemy from uploading object columns as CLOB.
@@ -87,6 +137,7 @@ def upload_data(source_full_path, table_name, insert_method, db_connection):
         dtype = force_object_dtype_as_object(chunk)
         chunk.to_sql(table_name, con=db_connection, index=False,
                      if_exists=insert_method, dtype=dtype, chunksize=10000)
+    print(f'{source_full_path} was successfully uploaded to {table_name}.')
 
 
 def main():
@@ -104,7 +155,10 @@ def main():
     url_parameters = args.url_parameters
     table_name = args.table_name
     insert_method = args.insert_method
-    oracle_location = args.oracle_location
+    if args.oracle_location:
+        oracle_location = args.oracle_location
+    else:
+        oracle_location = install_oracle_package()
 
     cx_Oracle.init_oracle_client(lib_dir=oracle_location)
 
