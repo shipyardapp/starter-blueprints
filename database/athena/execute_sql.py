@@ -10,7 +10,8 @@ def get_args():
     parser.add_argument('--secret-key', dest='secret_key', required=False)
     parser.add_argument('--region-name', dest='region_name', required=True)
     parser.add_argument('--bucket', dest='bucket', required=True)
-    parser.add_argument('--database', dest='database', required=True)
+    parser.add_argument('--log-folder', dest='log_folder', required=False)
+    parser.add_argument('--database', dest='database', required=False)
     parser.add_argument('--query', dest='query', required=True)
     args = parser.parse_args()
     return args
@@ -43,6 +44,7 @@ def main():
     region_name = args.region_name
     database = args.database
     bucket = args.bucket
+    log_folder = args.log_folder
     query = args.query
 
     try:
@@ -52,10 +54,21 @@ def main():
         print(f'Failed to access Athena with specified credentials')
         raise(e)
 
+    context = {}
+    if database:
+        context = {'Database': database}
+
+    bucket = bucket.strip('/')
+    if log_folder:
+        log_folder = log_folder.strip('/')
+        output = f's3://{bucket}/{log_folder}/'
+    else:
+        output = f's3://{bucket}/'
+
     job = client.start_query_execution(
                 QueryString=query,
-                QueryExecutionContext={'Database': database},
-                ResultConfiguration={'OutputLocation': f's3://{bucket}/'}
+                QueryExecutionContext=context,
+                ResultConfiguration={'OutputLocation': output}
                 )
 
     job_id = job['QueryExecutionId']
