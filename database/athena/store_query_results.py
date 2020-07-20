@@ -11,7 +11,8 @@ def get_args():
     parser.add_argument('--secret-key', dest='secret_key', required=False)
     parser.add_argument('--region-name', dest='region_name', required=True)
     parser.add_argument('--bucket', dest='bucket', required=True)
-    parser.add_argument('--database', dest='database', required=True)
+    parser.add_argument('--log-folder', dest='log_folder', required=False)
+    parser.add_argument('--database', dest='database', required=False)
     parser.add_argument('--query', dest='query', required=True)
     parser.add_argument('--destination-file-name', dest='destination_file_name',
             default='output.csv', required=True)
@@ -69,7 +70,9 @@ def poll_status(client, job_id):
         print(f'Query completed')
         return result
     elif state == 'FAILED':
+        error_msg = result['QueryExecution']['Status'].get('StateChangeReason')
         print(f'Query failed')
+        print(error_msg)
         return result
     return False
 
@@ -81,6 +84,7 @@ def main():
     region_name = args.region_name
     database = args.database
     bucket = args.bucket
+    log_folder = args.log_folder
     query = args.query
     destination_file_name = args.destination_file_name
     destination_folder_name = args.destination_folder_name
@@ -105,17 +109,29 @@ def main():
         print(f'Failed to access S3 Storage with specified credentials')
         raise(e)
 
+    context = {}
+    if database:
+        context = {'Database': database}
+
+    bucket = bucket.strip('/')
+    if log_folder:
+        log_folder = log_folder.strip('/')
+        output = f's3://{bucket}/{log_folder}/'
+    else:
+        output = f's3://{bucket}/'
+
     job = client.start_query_execution(
                 QueryString=query,
-                QueryExecutionContext={'Database': database},
-                ResultConfiguration={'OutputLocation': f's3://{bucket}/'}
+                QueryExecutionContext=context,
+                ResultConfiguration={'OutputLocation': output}
                 )
 
     job_id = job['QueryExecutionId']
 
-    while not poll_status(client, job_id):
+    status = poll_status(client, job_id)
+    while not status:
         time.sleep(0.1)
-        print(f'Polling query status')
+        status = poll_status(client, job_id)
 
     create_csv(
         job_id=job_id,
