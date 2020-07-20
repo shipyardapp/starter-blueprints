@@ -111,7 +111,7 @@ def determine_oracle_package_download_url():
             "32bit": "https://www.oracle.com/database/technologies/instant-client/macos-x-ppc-downloads.html#license-lightbox"
         },
         "linux": {
-            "64bit": "https://download.oracle.com/otn_software/linux/instantclient/19600/instantclient-basic-linux.x64-19.6.0.0.0dbru.zip", https: // download.oracle.com/otn_software/linux/instantclient/19600/instantclient-basic-linux.x64-19.6.0.0.0dbru.zip
+            "64bit": "https://download.oracle.com/otn_software/linux/instantclient/19600/instantclient-basic-linux.x64-19.6.0.0.0dbru.zip",
             "32bit": "https://download.oracle.com/otn_software/linux/instantclient/19600//instantclient-basic-linux-19.6.0.0.0dbru.zip"
         }
     }
