@@ -8,7 +8,7 @@ def get_args():
             choices={'GET', 'POST', 'PUT'})
     parser.add_argument('--url', dest='url', required=True)
     parser.add_argument('--authorization-header', dest='authorization_header',
-            required=False, default={})
+            required=False, default=None)
     parser.add_argument('--message', dest='message', required=False)
     args = parser.parse_args()
     return args
@@ -21,13 +21,17 @@ def main():
     authorization_header = args.authorization_header
     message = args.message
 
+    header = {}
+    if authorization_header:
+        header = {'Authorization': authorization_header}
+
     try:
         if method == 'GET':
-            req = requests.get(url, headers=authorization_header)
+            req = requests.get(url, headers=header)
         elif method == 'POST':
-            req = requests.post(url, headers=authorization_header, data=message)
+            req = requests.post(url, headers=header, data=message)
         elif method == 'PUT':
-            req = requests.put(url, headers=authorization_header, data=message)
+            req = requests.put(url, headers=header, data=message)
     except Exception as e:
         print(f'Failed to execute {method} request to {url}')
         raise(e)
