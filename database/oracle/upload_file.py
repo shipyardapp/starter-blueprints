@@ -8,6 +8,7 @@ import requests
 import cx_Oracle
 from zipfile import ZipFile
 import platform
+from subprocess import check_output, CalledProcessError, STDOUT
 
 
 def get_args():
@@ -31,10 +32,20 @@ def get_args():
                         dest='source_folder_name', default='', required=False)
     parser.add_argument('--table-name', dest='table_name', default=None,
                         required=True)
-    parser.add_argument('--insert-method', dest='insert_method', choices={'fail', 'replace', 'append'}, default='append',
-                        required=False)
-    parser.add_argument('--oracle-location', dest='oracle_location', default=None,
-                        required=False)
+    parser.add_argument(
+        '--insert-method',
+        dest='insert_method',
+        choices={
+            'fail',
+            'replace',
+            'append'},
+        default='append',
+        required=False)
+    parser.add_argument(
+        '--oracle-location',
+        dest='oracle_location',
+        default=None,
+        required=False)
     args = parser.parse_args()
     return args
 
@@ -72,34 +83,33 @@ def combine_folder_and_file_name(folder_name, file_name):
     return combined_name
 
 
-def determine_os_name(platform):
+def determine_os_name():
     """
     Figure out which operating system the script is running on.
     """
-    if 'macOS' in platform:
+    current_os = platform.platform()
+    if 'macOS' in current_os:
         os_name = 'mac'
-    elif 'windows' in platform:
+    elif 'windows' in current_os:
         os_name = 'windows'
     else:
         os_name = 'linux'
     return os_name
 
 
-def determine_os_version(platform):
+def determine_os_version():
     """
     Figure out if the OS is running on 64bit or 32bit.
     """
-    if 'x86_64' in platform:
+    current_os = platform.platform()
+    if 'x86_64' in current_os:
         os_version = '64bit'
     else:
         os_version = '32bit'
     return os_version
 
 
-def determine_oracle_package_download_url():
-    current_os = platform.platform()
-    os_name = determine_os_name(current_os)
-    os_version = determine_os_version(current_os)
+def determine_oracle_package_download_url(os_name, os_version):
 
     oracle_packages = {
         "windows": {
@@ -119,30 +129,56 @@ def determine_oracle_package_download_url():
     return url
 
 
-def install_oracle_package(url):
+def determine_top_level_folder(zip_file):
+    with ZipFile(zip_file, 'r') as f:
+        top_level_folder = list(
+            set(item.split('/')[0] for item in f.namelist()))[0]
+    return top_level_folder
+
+
+def decompress_file(zip_file, download_location, os_name):
+    if os_name == 'linux':
+        try:
+            check_output(['unzip',
+                          '-q',
+                          zip_file,
+                          '-d',
+                          download_location],
+                         stderr=STDOUT)
+        except CalledProcessError as e:
+            raise e
+    else:
+        try:
+            with ZipFile(f'{download_location}/oracle.zip', 'r') as zip_file:
+                zip_file.extractall(download_location)
+        except Exception as e:
+            raise e
+
+
+def install_oracle_package(os_name, os_version):
     """
     Install the Oracle Client using the user's current operating system.
     Only runs if an oracle_location has not been provided.
     Returns the installation location.
     """
-
     download_location = './oracle'
+    zip_file = f'{download_location}/oracle.zip'
+    url = determine_oracle_package_download_url(os_name, os_version)
+
     if not os.path.exists(download_location):
         os.makedirs(download_location)
 
     r = requests.get(url, allow_redirects=True)
-    open(f'{download_location}/oracle.zip', 'wb').write(r.content)
+    open(zip_file, 'wb').write(r.content)
+    decompress_file(zip_file, download_location, os_name)
 
-    with ZipFile(f'{download_location}/oracle.zip', 'r') as zip_file:
-        top_level_folder = list(
-            set(item.split('/')[0] for item in zip_file.namelist()))[0]
-        zip_file.extractall(download_location)
-
+    top_level_folder = determine_top_level_folder(zip_file)
     installation_location = f'{download_location}/{top_level_folder}'
+    os.environ['LD_LIBRARY_PATH'] = f'{download_location}/{top_level_folder}:$LD_LIBRARY_PATH'
     return installation_location
 
 
-def force_object_dtype_as_object(df):
+def force_object_dtype_as_varchar(df):
     """
     Prevents SQLAlchemy from uploading object columns as CLOB.
     Instead forces as varchar, with max length of 4000 bytes.
@@ -151,7 +187,8 @@ def force_object_dtype_as_object(df):
     Solution courtesy of:
     https://stackoverflow.com/questions/42727990/speed-up-to-sql-when-writing-pandas-dataframe-to-oracle-database-using-sqlalch
     """
-    return {c: types.VARCHAR(4000) for c in df.columns[df.dtypes == 'object'].tolist()}
+    return {c: types.VARCHAR(4000)
+            for c in df.columns[df.dtypes == 'object'].tolist()}
 
 
 def upload_data(source_full_path, table_name, insert_method, db_connection):
@@ -159,7 +196,7 @@ def upload_data(source_full_path, table_name, insert_method, db_connection):
     Read the provided CSV and insert the rows into the provided table_name.
     """
     for chunk in pd.read_csv(source_full_path, chunksize=10000):
-        dtype = force_object_dtype_as_object(chunk)
+        dtype = force_object_dtype_as_varchar(chunk)
         chunk.to_sql(table_name, con=db_connection, index=False,
                      if_exists=insert_method, dtype=dtype, chunksize=10000)
     print(f'{source_full_path} was successfully uploaded to {table_name}.')
@@ -180,11 +217,13 @@ def main():
     url_parameters = args.url_parameters
     table_name = args.table_name
     insert_method = args.insert_method
+    os_name = determine_os_name()
+    os_version = determine_os_version()
+
     if args.oracle_location:
         oracle_location = args.oracle_location
     else:
-        url = determine_oracle_package_download_url()
-        oracle_location = install_oracle_package(url)
+        oracle_location = install_oracle_package(os_name, os_version)
 
     cx_Oracle.init_oracle_client(lib_dir=oracle_location)
 
@@ -200,8 +239,11 @@ def main():
         print(f'{len(matching_file_names)} files found. Preparing to upload...')
 
         for index, key_name in enumerate(matching_file_names):
-            upload_data(source_full_path=key_name, table_name=table_name,
-                        insert_method=insert_method, db_connection=db_connection)
+            upload_data(
+                source_full_path=key_name,
+                table_name=table_name,
+                insert_method=insert_method,
+                db_connection=db_connection)
             print(f'{key_name} has been uploaded to {table_name}.')
 
     else:
