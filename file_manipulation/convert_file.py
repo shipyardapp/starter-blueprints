@@ -35,13 +35,17 @@ def get_args():
         dest='destination_file_name',
         default=None,
         required=False)
-    parser.add_argument('--destination-file-format', dest='destination_file_format', choices={
-        'tsv',
-        'psv',
-        'xlsx',
-        'parquet',
-        'stata',
-        'hdf5'}, required=True)
+    parser.add_argument(
+        '--destination-file-format',
+        dest='destination_file_format',
+        choices={
+            'tsv',
+            'psv',
+            'xlsx',
+            'parquet',
+            'stata',
+            'hdf5'},
+        required=True)
     parser.add_argument('--extra-args', dest='extra_args', default='{}')
     return parser.parse_args()
 
@@ -99,7 +103,8 @@ def find_all_file_matches(file_names, file_name_re):
     return matching_file_names
 
 
-def create_fallback_destination_file_name(source_file_name, destination_file_format):
+def create_fallback_destination_file_name(
+        source_file_name, destination_file_format):
     """
     If a destination_file_name is not provided, uses the source_file_name with a removal of the compression extension.
     """
@@ -114,8 +119,7 @@ def create_fallback_destination_file_name(source_file_name, destination_file_for
     }
 
     file_name = os.path.basename(source_file_name)
-    file_name = file_name.replace(
-        '.csv', f'{format_extensions[destination_file_format]}')
+    file_name = f'{os.path.splitext(file_name)[0]}.{format_extensions[destination_file_format]}'
     return file_name
 
 
@@ -177,9 +181,13 @@ def determine_destination_full_path(
     return destination_full_path
 
 
-def convert_file(source_full_path, destination_file_format, destination_full_path, **extra_args):
+def convert_file(
+        source_full_path,
+        destination_file_format,
+        destination_full_path,
+        **extra_args):
     input_df = pd.read_csv(source_full_path)
-    
+
     if destination_file_format in ['tsv', 'psv']:
         if 'chunksize' not in extra_args:
             extra_args['chunksize'] = 10000
@@ -192,17 +200,19 @@ def convert_file(source_full_path, destination_file_format, destination_full_pat
     if destination_file_format == 'xlsx':
         if 'index' not in extra_args:
             extra_args['index'] = False
-        # Currently always shows the user an error message that their file needs to be repaired, but I couldn't visibily see issues.
+        # Currently always shows the user an error message that their file
+        # needs to be repaired, but I couldn't visibily see issues.
         input_df.to_excel(destination_full_path,
-                        engine='xlsxwriter', **extra_args)
+                          engine='xlsxwriter', **extra_args)
     if destination_file_format == 'parquet':
         input_df.to_parquet(destination_full_path, **extra_args)
     if destination_file_format == 'stata':
         input_df.to_stata(destination_full_path, **extra_args)
     if destination_file_format == 'hdf5':
         input_df.to_hdf(destination_full_path, key='shipyard', **extra_args)
-    
-    print(f'Successfully converted {source_full_path} to {destination_full_path}')
+
+    print(
+        f'Successfully converted {source_full_path} to {destination_full_path}')
     return
 
 
@@ -224,7 +234,8 @@ def main():
         destination_folder_name, destination_file_name)
     extra_args = ast.literal_eval(args.extra_args)
 
-    if not os.path.exists(destination_folder_name) and (destination_folder_name != ''):
+    if not os.path.exists(destination_folder_name) and (
+            destination_folder_name != ''):
         os.makedirs(destination_folder_name)
 
     if source_file_name_match_type == 'regex_match':
@@ -241,10 +252,14 @@ def main():
                     source_full_path=key_name,
                     file_number=index + 1,
                     destination_file_format=destination_file_format)
-                print(f'Converting file {index+1} of {len(matching_file_names)} to {destination_file_format}')
+                print(
+                    f'Converting file {index+1} of {len(matching_file_names)} to {destination_file_format}')
                 try:
-                    convert_file(source_full_path=key_name, destination_file_format=destination_file_format,
-                                destination_full_path=destination_full_path, **extra_args)
+                    convert_file(
+                        source_full_path=key_name,
+                        destination_file_format=destination_file_format,
+                        destination_full_path=destination_full_path,
+                        **extra_args)
                 except Exception as e:
                     print(f'Could not convert {source_full_path}')
                     print(e)
@@ -258,11 +273,14 @@ def main():
             source_full_path=source_full_path,
             destination_file_format=destination_file_format)
         try:
-            convert_file(source_full_path=source_full_path, destination_file_format=destination_file_format,
-                        destination_full_path=destination_full_path, **extra_args)
+            convert_file(
+                source_full_path=source_full_path,
+                destination_file_format=destination_file_format,
+                destination_full_path=destination_full_path,
+                **extra_args)
         except Exception as e:
-                print(f'Could not convert {source_full_path}')
-                print(e)
+            print(f'Could not convert {source_full_path}')
+            print(e)
 
 
 if __name__ == '__main__':
