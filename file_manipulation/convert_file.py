@@ -12,10 +12,11 @@ def get_args():
     parser.add_argument(
         '--source-file-name-match-type',
         dest='source_file_name_match_type',
+        default='exact_match',
         choices={
             'exact_match',
             'regex_match'},
-        required=True)
+        required=False)
     parser.add_argument(
         '--source-file-name',
         dest='source_file_name',
@@ -119,7 +120,7 @@ def create_fallback_destination_file_name(
     }
 
     file_name = os.path.basename(source_file_name)
-    file_name = f'{os.path.splitext(file_name)[0]}.{format_extensions[destination_file_format]}'
+    file_name = f'{os.path.splitext(file_name)[0]}{format_extensions[destination_file_format]}'
     return file_name
 
 
