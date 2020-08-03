@@ -1,0 +1,4 @@
+pandas==1.0.5
+XlsxWriter==1.2.9
+pyarrow==0.17.1
+tables==3.6.1
